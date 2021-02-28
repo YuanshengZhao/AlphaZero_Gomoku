@@ -1,0 +1,10 @@
+*.pdf
+eval/
+games/
+weights/
+.vscode/
+__pycache__/
+*.tf*
+checkpoint
+test*
+*.log
