@@ -8,6 +8,12 @@ import MCTS
 import sys
 import time
 
+if(len(sys.argv)>3):
+    MCTS.loadEngine(1,sys.argv[2])
+    MCTS.loadEngine(2,sys.argv[3])
+else:
+    MCTS.loadEngine(1,"./weights/RNG64.tf")
+    MCTS.loadEngine(2,"./RNG64.tf")
 MCTS.setFPU(1.3,1.3)
 
 rst=MCTS.versus(2,MCTS.evaluatePositionVA)

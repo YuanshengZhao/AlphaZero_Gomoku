@@ -177,8 +177,8 @@ class AZV(tf.keras.metrics.Metric):
         return self.acuv.reset_states()
 
 class A0_ENG(object):
-    def __init__(self,nflter,wt_file):
-        self.optz=tf.keras.optimizers.SGD(learning_rate=1.0e-2,momentum=0.9,nesterov=True,clipvalue=1e-1)
+    def __init__(self,nflter,wt_file,lgrt=1e-2):
+        self.optz=tf.keras.optimizers.SGD(learning_rate=lgrt,momentum=0.9,nesterov=True,clipvalue=1e-1)
         # self.optz=tf.keras.optimizers.Adamax(learning_rate=1.0e-4)
         self.a0_eng = RN_GM(nflter)
 
@@ -193,5 +193,6 @@ class A0_ENG(object):
         self.a0_eng.summary()
         if(os.path.isfile(wt_file+".index")):
             self.a0_eng.load_weights(wt_file)
+            print("loaded weights",wt_file)
         else:
             print("warning: weight file not found!")

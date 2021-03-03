@@ -1,13 +1,13 @@
 # AzGomoku
-Alpha (Go) Zero algorithm on Gomoku (Five In A Row) game. The code is largely based on the pseudo-code provided by Alpha Zero paper.
+Alpha (Go) (Zero) algorithm on Gomoku (Five In A Row) game. The code is largely based on the pseudo-code provided by Alpha Zero paper.
 
-[Alpha Go Zero](https://www.nature.com/articles/nature24270?sf123103138=1)  
-[Alpha Zero](https://science.sciencemag.org/content/362/6419/1140)
+[Alpha Go Zero paper](https://www.nature.com/articles/nature24270?sf123103138=1)  
+[Alpha Zero paper](https://science.sciencemag.org/content/362/6419/1140)
 
 ## Network
 Reference to: [Lczero](https://lczero.org/dev/backend/nn/).
 
-- Board: 15x15x2. maps: stones-self, stones-opponent. No need for color or history.
+- Board: 15x15x2. maps: [stones-self, stones-opponent]. No need for color or history.
 - Init: Conv2D, 3x3 64 filters   
 - Body: 10 block [SE](https://arxiv.org/abs/1709.01507)-[ResNet](https://arxiv.org/abs/1512.03385) tower, 3x3, 64 filters, 32 SE_channels.  
 - Body followed by:
@@ -18,13 +18,13 @@ Reference to: [Lczero](https://lczero.org/dev/backend/nn/).
 - WDL encoding: [1/0.5/0]((https://lczero.org/blog/2018/12/alphazero-paper-and-lc0-v0191/)) (not +1/0/-1 stated in the paper)
 - `cpuct_base`: 19652
 - `cpuct`: 1.25
-- `FPU`: reduction 0.6
+- `FPU`: reduction 0.3
 
 ## Training
 Run `autoTrain.py` (set appropriate parameters (hash size, `n_prec`, etc.) first; took several weeks on PC without GPU).
 - `num_simul`: 800
 - `dirichlet noise`: `alpha` 0.05 (~10/225), `fraction` 0.25
-- `temperature`: 0.8 for 15 ply, 0 from 16th ply
+- `temperature`: 0.5~0.8 for 15 ply, 0 from 16th ply
 - `opening book`: 1 to 3 random moves
 - `batch size`: 256
 - `optimizer`: SGD Nesterov
@@ -33,15 +33,16 @@ Run `autoTrain.py` (set appropriate parameters (hash size, `n_prec`, etc.) first
 At the beginning, to accelerate learning, I used an external engine (weak) to teach the NN (this is actually cheating!).
 
 ## Play against the engine
-Use `hmpl.py` (loading `a0eng2` and `hashTB2` in `MCTS.py` is unnecessary and can save ~50% memory).
+Use `hmplGUI.py`.
 
 Warning: The whole code in this repository is for demonstration of Alpha (Go) Zero, and should be largely optimized for a good performance (e.g. parallel execution, batching the positions for NN evaluation)!!!
 
-Currently, `num_simul = 50` is recommended on CPU (3 sec. thinking time). Increase this number for stronger playing strenth. 
+Currently, `num_simul = 50` is recommended on CPU (2 sec. thinking time using CPU). Increase this number for stronger playing strenth. 
 
-The engine has certain playing strength, but not that strong. Relatively speeking, it excels in building up in quiet positions where no immediate tactics are available, while in messy attacking positions, it might blunder, which may be rooted in [a weakness of MCTS](https://en.wikipedia.org/wiki/Monte_Carlo_tree_search#Advantages_and_disadvantages).
+The engine has certain playing strength, but can blunder in messy positions where both sides have attacking chances, which may be rooted in [a weakness of MCTS](https://en.wikipedia.org/wiki/Monte_Carlo_tree_search#Advantages_and_disadvantages).
 
-## Evaluation of [typical openings](https://en.wikipedia.org/wiki/Renju_opening_pattern) (4K Nodes)
+## Evaluation of [typical openings](https://en.wikipedia.org/wiki/Renju_opening_pattern)
+8720 steps of training; 4K Nodes
 ### Indirect openings (first two moves are 7 7 and 6 8)
 | Name           | Move | Theory | Reply | Score |
 | -----------    | ---- | ------ | ----- | ----- |

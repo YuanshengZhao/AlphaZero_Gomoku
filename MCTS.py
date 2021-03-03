@@ -240,6 +240,7 @@ def add_exploration_noise(node: Node):
 fpuReduction=1.3
 fpuReductionRoot=1.3
 #fpu is modifyed in sfvs and sfpl. chaning it here no longer has any effect!
+#fpu here is in fact fpu+1 due to convention
 def setFPU(rdc,rdcr):
     global fpuReduction,fpuReductionRoot
     fpuReduction,fpuReductionRoot=rdc,rdcr
@@ -285,7 +286,7 @@ def select_action(root: Node,add_noise=True):
         visit_counts = [(root.children[i].visit_count+np.random.uniform(-1e-1,1e-1),root.actions[i]) for i in range(len(root.actions))]
         _, action = max(visit_counts)
     else:
-        visit_counts = np.array([(root.children[i].visit_count)**1.25 for i in range(len(root.actions))])
+        visit_counts = np.array([(root.children[i].visit_count)**2 for i in range(len(root.actions))])
         visit_counts_sum=np.sum(visit_counts)
         action = np.random.choice(root.actions,p=visit_counts/visit_counts_sum)
 
@@ -328,11 +329,19 @@ def run_mcts(evaluatePosition,add_noise=True):
     #     print("%3d %3d %6f %6f %3d"%(root.actions[ii]//15,root.actions[ii]%15,root.children[ii].prior,root.children[ii].value(),root.children[ii].visit_count))
     return select_action(root,add_noise),maxdepth
 
-a0eng =RN_Gomoku.A0_ENG(64,"./weights/RNG64.tf")
-a0eng2=RN_Gomoku.A0_ENG(64,"./RNG64.tf")
 
-hashTB=Zobrist.ZobristHash(500000)
-hashTB2=Zobrist.ZobristHash(500000)
+#./weights/RNG64.tf and ./RNG64.tf
+def loadEngine(idx,wtf,hszs=500000):
+    global a0eng,a0eng2,hashTB,hashTB2
+    if(idx==1):
+        a0eng =RN_Gomoku.A0_ENG(64,wtf)
+        hashTB=Zobrist.ZobristHash(hszs)
+    elif(idx==2):
+        a0eng2=RN_Gomoku.A0_ENG(64,wtf)
+        hashTB2=Zobrist.ZobristHash(hszs)
+    else:
+        print("Engine index must be 1 or 2!")
+
 
 def evaluatePositionV2():# naive vs nn_new
     if(side_id==0):

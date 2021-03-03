@@ -10,8 +10,9 @@ import sys
 if(len(sys.argv)<=1):
     print("Error! No argument given! Quiting.")
     quit()
-    
-MCTS.setFPU(1.1,0.9)
+
+MCTS.loadEngine(1,"./weights/RNG64.tf")
+MCTS.setFPU(1.3,1.0)
 
 MCTS.timeReset()
 MCTS.selfPlay(20,MCTS.evaluatePositionA,"./games/dat_train"+sys.argv[1]+".npz",40)

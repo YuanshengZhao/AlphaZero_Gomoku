@@ -5,19 +5,22 @@ import tkinter as tk
 from tkinter import messagebox
 import MCTS
 
-MCTS.setNumSimul(50)
-MCTS.setFPU(1.3,1.3)
+MCTS.loadEngine(1,"./weights/RNG64.tf")
+nsu,fpun,fpur=50,1.6,1.3
+MCTS.setNumSimul(nsu)
+MCTS.setFPU(fpun,fpur)
+
 root=tk.Tk(className='AzG')
 boolvar=tk.IntVar()
-autoPlay=tk.Checkbutton(root,text="auto play",variable=boolvar)
-autoPlay.place(x=100,y=10)
-autoPlay.toggle()
-dx=32
+dxwidget=90
+dx=34
 pce=int(dx/2.3)
 sar=int(dx/10)
 hdx=dx//2
 barcenter=int(dx*19.5)
 barlength=int(dx*1.25)
+gameover=0
+isfree=True
 
 mvlst=[]
 nblst=[]
@@ -38,15 +41,16 @@ def redrawEval():
     brlst=[]
     if(nbs==0):
         return
-    brwd=min(dx/2,dx*14/nbs)
+    brwd=min(dx//2,dx*14//nbs)
     for ii in range(nbs):
         ddy=((evlst[ii]-0.5)*2*barlength) if ii%2==0 else ((0.5-evlst[ii])*2*barlength)
         if(ddy>=1 or ddy<= -1):
-            brlst.append(canvas.create_rectangle(dx*2+brwd*ii,barcenter,dx*2+brwd*(ii+1),barcenter-ddy,fill="black" if ddy>0 else "white"))
+            brlst.append(canvas.create_rectangle(dx*2+brwd*ii,barcenter,dx*2+brwd*(ii+1),barcenter-ddy,fill="gray35" if ddy>0 else "gray70"))
         else:
             brlst.append(canvas.create_line(dx*2+brwd*ii,barcenter,dx*2+brwd*(ii+1),barcenter,fill="black"))
 
 def takeBack():
+    global gameover
     if(len(mvlst)<1):
         print("Cannot take back!")
         return
@@ -58,10 +62,41 @@ def takeBack():
     nblst.pop()
     evlst.pop()
     redrawEval()
+    if(gameover):
+        canvas.bind("<Button-1>",playStone)
+        btmEval.config(state='normal')
+        gameover=0
     MCTS.takeBack()
     MCTS.printBoard(MCTS.board)
+    print("%d to move; %3d moves played."%(MCTS.side2move,MCTS.move_count))
+
+def newGame():
+    global gameover,evlst,nblst,pllst,mvlst,filled
+    if(len(mvlst)<1):
+        print("Cannot take back!")
+        return
+    for obj in mvlst:
+        canvas.delete(obj)
+    for obj in nblst:
+        canvas.delete(obj)
+    filled=[[0 for _ in range(15)] for __ in range(15)]
+    mvlst=[]
+    pllst=[]
+    nblst=[]
+    evlst=[]
+    redrawEval()
+    if(gameover):
+        canvas.bind("<Button-1>",playStone)
+        btmEval.config(state='normal')
+        gameover=0
+    MCTS.side2move=0
+    MCTS.move_count=0
+    MCTS.board*=0
+    MCTS.printBoard(MCTS.board)
+    print("%d to move; %3d moves played."%(MCTS.side2move,MCTS.move_count))
 
 def playStoneXY(px,py,evalu=0.5):
+    global gameover
     if(px<0 or px>14 or py<0 or py>14):
         return
     print("play",px,py)
@@ -77,10 +112,14 @@ def playStoneXY(px,py,evalu=0.5):
         redrawEval()
         MCTS.applyMove(px*15+py)
         MCTS.printBoard(MCTS.board)
+        print("%d to move; %3d moves played."%(MCTS.side2move,MCTS.move_count))
         if(MCTS.winLossDraw()!=-1):
             print("game over!")
             root.update()
-            messagebox.showinfo(master=root,message="Game Over!\nFurther operation undefined!")
+            messagebox.showinfo(master=root,message="Game Over!")
+            gameover=1
+            canvas.unbind("<Button-1>")
+            btmEval.config(state='disabled')
             return 1
     return 0
 
@@ -96,36 +135,58 @@ def ComputerMove():
     playStoneXY(mv[0]//15,mv[0]%15,mv[2])
 
 def playStone(event):
+    global isfree
+    if(not isfree): 
+        print("Do not pre-move!")
+        return
+    isfree=False
     px,py=(event.y+hdx)//dx-2, (event.x+hdx)//dx-2
     if(playStoneXY(px,py)==0):
         if(boolvar.get()):
             root.update()
             ComputerMove()
-    
+    isfree=True
 
-def changeNNode(xx):
+def changeNNode(xx1):
+    global nsu,fpun,fpur
+    lstt=xx1.split()
     try:
-        xx=int(xx)
+        nsu=int(lstt[0])
     except:
         print("Bad cmd!")
-    if(xx>0):
-        MCTS.setNumSimul(xx)
+    if(nsu>0):
+        MCTS.setNumSimul(nsu)
     else:
         print("Illegal number of nodes!")
 
+    try:
+        fpun,fpur=float(lstt[1]),float(lstt[2])
+    except:
+        print("Bad cmd!")
+    if(fpun>=0.5 and fpun<=2.0 and fpur>=0.5 and fpur<=2.0):
+        MCTS.setFPU(fpun,fpur)
+    else:
+        print("Illegal FPU!")
+
 btmEval=tk.Button(root,text="Comp Play",command=ComputerMove)
 btmEval.place(x=10,y=10)
+autoPlay=tk.Checkbutton(root,text="auto play",variable=boolvar)
+autoPlay.place(x=dxwidget+10,y=10)
+autoPlay.toggle()
 btmBack=tk.Button(root,text="Take Back",command=takeBack)
-btmBack.place(x=200,y=10)
-entNod=tk.Entry(root,width=5)
-entNod.place(x=400,y=10)
-entNod.insert(0,"50")
-btmSnd=tk.Button(root,text="Set N_Node",command=lambda:changeNNode(entNod.get()))
-btmSnd.place(x=300,y=10)
+btmBack.place(x=dxwidget*2+10,y=10)
+btmNew=tk.Button(root,text="New Game",command=newGame)
+btmNew.place(x=dxwidget*5.4+10,y=10)
+entNod=tk.Entry(root,width=12)
+entNod.place(x=dxwidget*4+10,y=10)
+entNod.insert(0,"%d %.1f %.1f"%(nsu,fpun,fpur))
+btmSnd=tk.Button(root,text="Set Param.",command=lambda:changeNNode(entNod.get()))
+btmSnd.place(x=dxwidget*3+10,y=10)
 
 
 
 canvas.bind("<Button-1>",playStone)
+
 for i in range(15):
     canvas.create_line(dx*2,dx*(i+2),dx*16,dx*(i+2))
     canvas.create_line(dx*(i+2),dx*2,dx*(i+2),dx*16)
@@ -139,5 +200,5 @@ canvas.create_rectangle(dx*(3 +2)-sar,dx*(11+2)-sar,dx*(3 +2)+sar,dx*(11+2)+sar,
 canvas.create_rectangle(dx*(11+2)-sar,dx*(3 +2)-sar,dx*(11+2)+sar,dx*(3 +2)+sar,fill="black")
 canvas.create_rectangle(dx*(11+2)-sar,dx*(11+2)-sar,dx*(11+2)+sar,dx*(11+2)+sar,fill="black")
 for i in [-1,1]:
-    canvas.create_line(dx*2,barcenter+i*barlength,dx*16,barcenter+i*barlength,fill="blue")
+    canvas.create_line(dx*2,barcenter+i*barlength,dx*16,barcenter+i*barlength,fill="black")
 root.mainloop() 
