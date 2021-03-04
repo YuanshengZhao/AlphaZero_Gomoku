@@ -7,9 +7,9 @@ from tensorflow.keras.regularizers import l2
 se_chnl=32
 
 brnp={
-    'rmax': 2.0, 
-    'rmin': 0.5,
-    'dmax': 1.0
+    'rmax': 3.125, 
+    'rmin': 0.32,
+    'dmax': 4.0
     # 'rmax': 3.125, 
     # 'rmin': 0.32,
     # 'dmax': 5.0

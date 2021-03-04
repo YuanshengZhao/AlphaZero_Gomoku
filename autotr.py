@@ -31,7 +31,7 @@ def waitForComplete():
         else:
             freecount=0
         print("current cpu:",pst,"free_count:",freecount,"round:",bigr+1,"/",Nbgr)
-        if(freecount>=6):
+        if(freecount>=60):
             break
         time.sleep(5)
     print("finished!")
@@ -39,7 +39,7 @@ def selfPlay():
     print("self play...")
     cmd="./Parallel_do.sh"
     for i in range(n_proc):
-        cmd+=" \"python3 sfpl2.py "+str(i+1)+"\""
+        cmd+=" \"nice -n 19 python3 sfpl2.py "+str(i+1)+"\""
     os.system(cmd)
     waitForComplete()
     fp=open("./trLog.log","a+")
@@ -47,7 +47,7 @@ def selfPlay():
     fp.close()
 
 def training():
-    os.system("python3 tr2.py")
+    os.system("nice -n 19 python3 tr2.py")
 
 def getevalrst():
     st=0.0
@@ -83,7 +83,7 @@ def evaluate():
     print("evaluate...")
     cmd="./Parallel_do.sh"
     for i in range(n_proc):
-        cmd+=" \"python3 sfvs.py "+str(i+1)+"\""
+        cmd+=" \"nice -n 19 python3 sfvs.py "+str(i+1)+"\""
     os.system(cmd)
     waitForComplete()
 

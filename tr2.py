@@ -1,11 +1,10 @@
 # training
 import numpy as np
-from tensorflow.python.ops.gen_math_ops import rsqrt, rsqrt_grad
 import RNG as RN_Gomoku
 import os
 import time
 
-a0eng=RN_Gomoku.A0_ENG(64,"./RNG64.tf")
+a0eng=RN_Gomoku.A0_ENG(64,"./RNG64.tf",1e-2)
 
 if(os.path.isfile("./games/dat_trprev.npz")):
     npz_t=np.load("./games/dat_trprev.npz")
@@ -53,26 +52,23 @@ print("avg score: ",np.average(y_tr[:,-1]),np.average(y_vl[:,-1]))
 print("draws: ",np.sum(y_tr[:,-1]==.5),np.sum(y_vl[:,-1]==.5))
 
 btze=256
-# rstr=a0eng.a0_eng(x_tr[-btze:],training=True).numpy()
-# rsvl=a0eng.a0_eng(x_tr[-btze:]).numpy()
-# print("v_rst:",a0eng.gmloss(y_tr[-btze:],rsvl).numpy(),rstr[-5:,-1],rsvl[-5:,-1],y_tr[-5:,-1])
+rmn=lxtr%btze
 
-hist=a0eng.a0_eng.fit(x_tr,y_tr,epochs=1,shuffle=False,batch_size=btze,validation_data=(x_vl,y_vl),steps_per_epoch=lxtr//btze)
+#do not waste any training data!
+if(rmn>0):
+    hist=a0eng.a0_eng.fit(x_tr[:-rmn],y_tr[:-rmn],epochs=1,shuffle=True,batch_size=btze,validation_data=(x_vl,y_vl))
+    np.savez("./games/dat_trprev.npz",np.concatenate((x_tr[-rmn:],x_vl)),np.concatenate((y_tr[-rmn:],y_vl)))
+else:
+    hist=a0eng.a0_eng.fit(x_tr,y_tr,epochs=1,shuffle=True,batch_size=btze,validation_data=(x_vl,y_vl))
+    np.savez("./games/dat_trprev.npz",x_vl,y_vl)
 a0eng.a0_eng.save_weights("./RNG64.tf")
 nstep=a0eng.a0_eng.optimizer.get_weights()[-1]
 print("steps trained:",nstep)
-
-rstr=a0eng.a0_eng(x_tr[-btze:],training=True).numpy()
-rsvl=a0eng.a0_eng(x_tr[-btze:]).numpy()
-print("v_rst:",a0eng.gmloss(y_tr[-btze:],rsvl).numpy(),rstr[-5:,-1],rsvl[-5:,-1],y_tr[-5:,-1])
-
-#do not waste any training data!
-rmn=lxtr%btze
-if(rmn>0):
-    npz_t=np.savez("./games/dat_trprev.npz",np.concatenate((x_tr[-rmn:],x_vl)),np.concatenate((y_tr[-rmn:],y_vl)))
-else:
-    npz_t=np.savez("./games/dat_trprev.npz",x_vl,y_vl)
 print("cached last %d samples and vlidn data"%(rmn))
+
+rsvl=a0eng.a0_eng(x_tr[-btze:]).numpy()
+rstr=a0eng.a0_eng(x_tr[-btze:],training=True).numpy()
+print("v_rst:",a0eng.gmloss(y_tr[-btze:],rsvl).numpy(),rstr[-5:,-1],rsvl[-5:,-1],y_tr[-5:,-1])
 
 fp=open("./trLog.log","a+")
 fp.write(time.strftime("%m/%d/%Y %H:%M:%S",time.localtime())+" training > ")

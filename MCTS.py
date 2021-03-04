@@ -281,9 +281,17 @@ def backpropagate(search_path, value: float):
         node.value_sum += value if node.to_play == 0 else (1 - value)
         node.visit_count += 1
 
+valueWt=0*num_simul
+def actionScore(node:Node):
+    if(node.visit_count<1):
+        return -valueWt
+    else:
+        return node.visit_count-valueWt*node.value()
+        #range:(-valueWt,num_simul)
+
 def select_action(root: Node,add_noise=True):
     if(move_count>=15 or (not add_noise)):
-        visit_counts = [(root.children[i].visit_count+np.random.uniform(-1e-1,1e-1),root.actions[i]) for i in range(len(root.actions))]
+        visit_counts = [(actionScore(root.children[i])+np.random.uniform(-1e-1,1e-1),root.actions[i]) for i in range(len(root.actions))]
         _, action = max(visit_counts)
     else:
         visit_counts = np.array([(root.children[i].visit_count)**2 for i in range(len(root.actions))])

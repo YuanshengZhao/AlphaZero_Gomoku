@@ -6,9 +6,10 @@ from tkinter import messagebox
 import MCTS
 
 MCTS.loadEngine(1,"./weights/RNG64.tf")
-nsu,fpun,fpur=50,1.6,1.3
+nsu,fpun,fpur,wtt=50,1.6,1.2,1.0
 MCTS.setNumSimul(nsu)
 MCTS.setFPU(fpun,fpur)
+MCTS.valueWt=wtt*MCTS.num_simul
 
 root=tk.Tk(className='AzG')
 boolvar=tk.IntVar()
@@ -148,7 +149,7 @@ def playStone(event):
     isfree=True
 
 def changeNNode(xx1):
-    global nsu,fpun,fpur
+    global nsu,fpun,fpur,wtt
     lstt=xx1.split()
     try:
         nsu=int(lstt[0])
@@ -168,6 +169,16 @@ def changeNNode(xx1):
     else:
         print("Illegal FPU!")
 
+    try:
+        wtt=float(lstt[3])
+    except:
+        print("Bad cmd!")
+    if(nsu>0):
+        MCTS.valueWt=wtt*MCTS.num_simul
+        print("value weight set to",wtt)
+    else:
+        print("Illegal number!")
+
 btmEval=tk.Button(root,text="Comp Play",command=ComputerMove)
 btmEval.place(x=10,y=10)
 autoPlay=tk.Checkbutton(root,text="auto play",variable=boolvar)
@@ -176,10 +187,10 @@ autoPlay.toggle()
 btmBack=tk.Button(root,text="Take Back",command=takeBack)
 btmBack.place(x=dxwidget*2+10,y=10)
 btmNew=tk.Button(root,text="New Game",command=newGame)
-btmNew.place(x=dxwidget*5.4+10,y=10)
+btmNew.place(x=dxwidget*5.6+10,y=10)
 entNod=tk.Entry(root,width=12)
 entNod.place(x=dxwidget*4+10,y=10)
-entNod.insert(0,"%d %.1f %.1f"%(nsu,fpun,fpur))
+entNod.insert(0,"%d %.1f %.1f %.1f"%(nsu,fpun,fpur,wtt))
 btmSnd=tk.Button(root,text="Set Param.",command=lambda:changeNNode(entNod.get()))
 btmSnd.place(x=dxwidget*3+10,y=10)
 

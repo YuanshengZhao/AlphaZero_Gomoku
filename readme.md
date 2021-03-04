@@ -21,7 +21,7 @@ Reference to: [Lczero](https://lczero.org/dev/backend/nn/).
 - `FPU`: reduction 0.3
 
 ## Training
-Run `autoTrain.py` (set appropriate parameters (hash size, `n_prec`, etc.) first; took several weeks on PC without GPU).
+Run `autotr.py` (set appropriate parameters (hash size, `n_prec`, etc.) first; took several weeks on PC without GPU).
 - `num_simul`: 800
 - `dirichlet noise`: `alpha` 0.05 (~10/225), `fraction` 0.25
 - `temperature`: 0.5~0.8 for 15 ply, 0 from 16th ply
