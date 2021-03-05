@@ -173,7 +173,7 @@ def changeNNode(xx1):
         wtt=float(lstt[3])
     except:
         print("Bad cmd!")
-    if(nsu>0):
+    if(wtt>0):
         MCTS.valueWt=wtt*MCTS.num_simul
         print("value weight set to",wtt)
     else:

@@ -31,9 +31,9 @@ def waitForComplete():
         else:
             freecount=0
         print("current cpu:",pst,"free_count:",freecount,"round:",bigr+1,"/",Nbgr)
-        if(freecount>=60):
+        if(freecount>=5):
             break
-        time.sleep(5)
+        time.sleep(60)
     print("finished!")
 def selfPlay():
     print("self play...")

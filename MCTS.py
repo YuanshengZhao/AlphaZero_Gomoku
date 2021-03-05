@@ -72,8 +72,8 @@ def showHeatMap(x_tr,y_tr,z_tr=None):
                 ax.text(jj, ii, 
                 toTex(x_tr,ii,jj),
                            ha="center", va="center", color="w")
-        ax.set_xticks([], [])
-        ax.set_yticks([], [])
+        ax.set_xticks([])
+        ax.set_yticks([])
         plt.show()
     else:
         print(y_tr[-1],z_tr[-1])
@@ -84,16 +84,16 @@ def showHeatMap(x_tr,y_tr,z_tr=None):
                 ax1.text(jj, ii, 
                 toTex(x_tr,ii,jj),
                            ha="center", va="center", color="w")
-        ax1.set_xticks([], [])
-        ax1.set_yticks([], [])
+        ax1.set_xticks([])
+        ax1.set_yticks([])
         ax2.imshow(np.reshape(z_tr[:-1],[15,15]))
         for ii in range(15):
             for jj in range(15):
                 ax2.text(jj, ii, 
                 toTex(x_tr,ii,jj),
                            ha="center", va="center", color="w")
-        ax2.set_xticks([], [])
-        ax2.set_yticks([], [])
+        ax2.set_xticks([])
+        ax2.set_yticks([])
         plt.show()
 
 
@@ -294,7 +294,7 @@ def select_action(root: Node,add_noise=True):
         visit_counts = [(actionScore(root.children[i])+np.random.uniform(-1e-1,1e-1),root.actions[i]) for i in range(len(root.actions))]
         _, action = max(visit_counts)
     else:
-        visit_counts = np.array([(root.children[i].visit_count)**2 for i in range(len(root.actions))])
+        visit_counts = np.array([(root.children[i].visit_count)**1.5 for i in range(len(root.actions))])
         visit_counts_sum=np.sum(visit_counts)
         action = np.random.choice(root.actions,p=visit_counts/visit_counts_sum)
 
@@ -310,7 +310,8 @@ def run_mcts(evaluatePosition,add_noise=True):
     nodes_used=0
     root = Node(1.0,side2move)
     root.visit_count=1
-    root.value_sum=evaluate(root,evaluatePosition)
+    root.value_sum=evaluate(root,evaluatePosition) if side2move==0 else 1.0-evaluate(root,evaluatePosition)
+    # evaluate returns absolute value: 1 for black wins 0 for white wins
     depth=0
     maxdepth=0
     if(add_noise):
@@ -329,7 +330,7 @@ def run_mcts(evaluatePosition,add_noise=True):
 
         value=evaluate(node,evaluatePosition)
         backpropagate(search_path,value)
-        for __ in range(len(search_path)-1):
+        for __ in range(depth):
             takeBack()
 
         maxdepth=max(maxdepth,depth)
