@@ -16,10 +16,12 @@ else:
     MCTS.loadEngine(2,"./RNG64.tf")
 MCTS.setFPU(1.3,1.3)
 
-rst=MCTS.versus(2,MCTS.evaluatePositionVA)
 
 if(len(sys.argv)>1):
+    rst=MCTS.versus(2,MCTS.evaluatePositionVA,"./eval/op"+sys.argv[1]+".txt")
     fp=open("./eval/gm"+sys.argv[1]+".txt","w")
     fp.write(str(rst)+"\n")
     # fp.write(time.strftime("%H:%M:%S",time.localtime())+"\n")
     fp.close()
+else:
+    rst=MCTS.versus(2,MCTS.evaluatePositionVA)

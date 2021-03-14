@@ -2,19 +2,19 @@
 
 import psutil
 import time
+import datetime
 import os
+import random
 
 # num of processes to launch
 # need to clear games folder when modifying its value
 n_proc=32
 cpuFreeThreshold=1.0
 
-bigr,Nbgr=0,6*7
-smlr,Nslr=0,4
+bigr,Nbgr=0,1
+smlr,Nslr=0,1
 
-print("test random:")
-os.system("./Parallel_do.sh"+ " \"python3 rndCheck.py\""*n_proc)
-time.sleep(10)
+start_time = time.time()
 
 for ddir in ["./weights","./games","./eval"]:
     if(os.path.isdir(ddir)):
@@ -31,16 +31,18 @@ def waitForComplete():
             freecount+=1
         else:
             freecount=0
-        print("current cpu:",pst,"free_count:",freecount,"round:",bigr+1,"/",Nbgr,";",smlr+1,"/",Nslr)
-        if(freecount>=5):
+        print("current cpu:",pst,"free_count:",freecount,"round:",bigr+1,"/",Nbgr,";",smlr+1,"/",Nslr,str(datetime.timedelta(seconds=time.time()-start_time)))
+        if(freecount>=2):
             break
         time.sleep(60)
     print("finished!")
 def selfPlay():
     print("self play...")
     cmd="./Parallel_do.sh"
+    rsed=random.sample(range(2147483647),n_proc)
     for i in range(n_proc):
-        cmd+=" \"nice -n 19 python3 sfpl2.py "+str(i+1)+"\""
+        cmd+=" \"nice -n 19 ./ag t 15000 gm"+str(i+1)+" "+str(rsed[i])+"\""
+    print(cmd)
     os.system(cmd)
     waitForComplete()
     fp=open("./trLog.log","a+")
@@ -48,13 +50,14 @@ def selfPlay():
     fp.close()
 
 def training():
-    os.system("nice -n 19 python3 tr2.py")
+    os.system("nice -n 19 python3 tr2c.py")
+    os.system("nice -n 19 python3 SaveMD.py n")
 
 def getevalrst():
     st=0.0
     dbls=0
     for i in range(n_proc):
-        fp=open("./eval/gm"+str(i+1)+".txt","r")
+        fp=open("./eval/gm"+str(i+1)+"r.txt","r")
         pscr=float(fp.readline())
         st+=pscr
         if(pscr<0.1):
@@ -82,19 +85,21 @@ def discardNet():
 
 def evaluate():
     print("evaluate...")
+    os.system("python3 opening_generator.py")
     cmd="./Parallel_do.sh"
+    rsed=random.sample(range(2147483647),n_proc)
     for i in range(n_proc):
-        cmd+=" \"nice -n 19 python3 sfvs.py "+str(i+1)+"\""
+        cmd+=" \"nice -n 19 ./ag v gm"+str(i+1)+" op"+str(i+1)+" "+str(rsed[i])+"\""
     os.system(cmd)
     waitForComplete()
 
 for bigr in range(Nbgr):
     print("training progress: ",bigr+1,"/",Nbgr)
-    time.sleep(30)
+    time.sleep(10)
     for smlr in range(Nslr):
         selfPlay()
         training()
-        time.sleep(30)
+        time.sleep(10)
     evaluate()
     est,dbls=getevalrst()
     fp=open("./trLog.log","a+")
@@ -104,11 +109,12 @@ for bigr in range(Nbgr):
         print("success")
         updateNet()
         vers=checkpoints()
+        os.system("nice -n 19 python3 SaveMD.py")
         fp.write("success; net saved to lv "+str(vers)+"\n")
         fp.close()
-        # break
+        break
     else:
         print("fail")
-        # discardNet()
-        fp.write("fail\n")
+        discardNet()
+        fp.write("fail; net discarded\n")
         fp.close()

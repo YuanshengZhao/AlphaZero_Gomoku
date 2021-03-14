@@ -1,15 +1,46 @@
 # Warning: This "gui app" is mainly for test play.
 # Do "normal things" or the behavior is undefined.
-
+from subprocess import Popen, PIPE
+import multiprocessing
 import tkinter as tk
 from tkinter import messagebox
-import MCTS
+import time
+engine = Popen(['./ag'], stdin=PIPE,stdout=PIPE,encoding='ascii',bufsize=0)
+gameover=0
+cmdout="NULL"
+def getoutput():
+    global cmdout,gameover
+    for line in iter(engine.stdout.readline, b''):
+        print(">>> " + line.rstrip())
+        # print(line[:9])
+        # print(line[:4],line[:4]=="Comp",cmdout)
+        if(line[:4]=="task" or line==""):
+            break
+        elif(line[:4]=="Comp"):
+             cmdout=line[:-1]
+        elif(line[:4]=="Game"):
+            gameover=1
+# def getOUTA():
+    # prs = multiprocessing.Process(target=getoutput)
+    # prs.start()
+    # prs.join(15)
+    # if prs.is_alive():
+        # print("Warning: abort reading.")
+        # prs.terminate()
+        # prs.join()
+    # getoutput()
+    
 
-MCTS.loadEngine(1,"./RNG64.tf")
-nsu,fpun,fpur,wtt=50,1.6,1.2,1.0
-MCTS.setNumSimul(nsu)
-MCTS.setFPU(fpun,fpur)
-MCTS.valueWt=wtt*MCTS.num_simul
+
+def sendMessage(msg):
+    engine.stdin.write(msg)
+    getoutput()
+
+nsu,fpun,fpur,wtt=800,1.3,1.0,0.0
+time.sleep(5)
+sendMessage("n %d\n"%(nsu))
+sendMessage("f %f %f\n"%(fpun,fpur))
+sendMessage("w %f\n"%(wtt))
 
 root=tk.Tk(className='AzG')
 boolvar=tk.IntVar()
@@ -20,7 +51,6 @@ sar=int(dx/10)
 hdx=dx//2
 barcenter=int(dx*19.5)
 barlength=int(dx*1.25)
-gameover=0
 isfree=True
 
 mvlst=[]
@@ -67,9 +97,8 @@ def takeBack():
         canvas.bind("<Button-1>",playStone)
         btmEval.config(state='normal')
         gameover=0
-    MCTS.takeBack()
-    MCTS.printBoard(MCTS.board)
-    print("%d to move; %3d moves played."%(MCTS.side2move,MCTS.move_count))
+    sendMessage("b\n")
+    # print("%d to move; %3d moves played."%(MCTS.side2move,MCTS.move_count))
 
 def newGame():
     global gameover,evlst,nblst,pllst,mvlst,filled
@@ -90,11 +119,12 @@ def newGame():
         canvas.bind("<Button-1>",playStone)
         btmEval.config(state='normal')
         gameover=0
-    MCTS.side2move=0
-    MCTS.move_count=0
-    MCTS.board*=0
-    MCTS.printBoard(MCTS.board)
-    print("%d to move; %3d moves played."%(MCTS.side2move,MCTS.move_count))
+    sendMessage("c\n")
+    # MCTS.side2move=0
+    # MCTS.move_count=0
+    # MCTS.board*=0
+    # MCTS.printBoard(MCTS.board)
+    # print("%d to move; %3d moves played."%(MCTS.side2move,MCTS.move_count))
 
 def playStoneXY(px,py,evalu=0.5):
     global gameover
@@ -106,34 +136,38 @@ def playStoneXY(px,py,evalu=0.5):
         return 1
     else:
         filled[px][py]=1
-        mvlst.append(canvas.create_oval(dx*(py+2)-pce,dx*(px+2)-pce,dx*(py+2)+pce,dx*(px+2)+pce,width=2,fill="white" if MCTS.move_count%2==1 else "black"))
-        nblst.append(canvas.create_text(dx*(py+2),dx*(px+2),text=str(MCTS.move_count+1),fill="red" if MCTS.move_count%2==1 else "cyan"))
+        lgg=len(pllst)
+        mvlst.append(canvas.create_oval(dx*(py+2)-pce,dx*(px+2)-pce,dx*(py+2)+pce,dx*(px+2)+pce,width=2,fill="white" if lgg%2==1 else "black"))
+        nblst.append(canvas.create_text(dx*(py+2),dx*(px+2),text=str(lgg+1),fill="red" if lgg%2==1 else "cyan"))
         pllst.append([px,py])
         evlst.append(evalu)
         redrawEval()
-        MCTS.applyMove(px*15+py)
-        MCTS.printBoard(MCTS.board)
-        print("%d to move; %3d moves played."%(MCTS.side2move,MCTS.move_count))
-        if(MCTS.winLossDraw()!=-1):
+        sendMessage("p %d %d\n"%(px,py))
+        # MCTS.applyMove(px*15+py)
+        # MCTS.printBoard(MCTS.board)
+        # print("%d to move; %3d moves played."%(MCTS.side2move,MCTS.move_count))
+        if(gameover==1):
             print("game over!")
             root.update()
             messagebox.showinfo(master=root,message="Game Over!")
-            gameover=1
             canvas.unbind("<Button-1>")
             btmEval.config(state='disabled')
             return 1
     return 0
 
 def ComputerMove():
+    global cmdout
     print("Computer thinking...")
-    MCTS.timeReset()
-    mv,dpt=MCTS.run_mcts(MCTS.evaluatePositionA,False)
-    if(MCTS.side2move==1):
-        print("%3d X %2d %2d %.3f, d %2d"%(MCTS.move_count,mv[0]//15,mv[0]%15,mv[2],dpt))
-    else:
-        print("%3d O %2d %2d %.3f, d %2d"%(MCTS.move_count,mv[0]//15,mv[0]%15,mv[2],dpt))
-    MCTS.printTime()
-    playStoneXY(mv[0]//15,mv[0]%15,mv[2])
+    # MCTS.timeReset()
+    sendMessage("v\n")
+    # mv,dpt=MCTS.run_mcts(MCTS.evaluatePositionA,False)
+    # if(MCTS.side2move==1):
+        # print("%3d X %2d %2d %.3f, d %2d"%(MCTS.move_count,mv[0]//15,mv[0]%15,mv[2],dpt))
+    # else:
+        # print("%3d O %2d %2d %.3f, d %2d"%(MCTS.move_count,mv[0]//15,mv[0]%15,mv[2],dpt))
+    # MCTS.printTime()
+    # print(cmdout,cmdout[10:12],cmdout[13:15],cmdout[16:21])
+    playStoneXY(int(cmdout[10:12]),int(cmdout[13:15]),float(cmdout[16:21]))
 
 def playStone(event):
     global isfree
@@ -156,7 +190,7 @@ def changeNNode(xx1):
     except:
         print("Bad cmd!")
     if(nsu>0):
-        MCTS.setNumSimul(nsu)
+        sendMessage("n %d\n"%(nsu))
     else:
         print("Illegal number of nodes!")
 
@@ -165,7 +199,7 @@ def changeNNode(xx1):
     except:
         print("Bad cmd!")
     if(fpun>=0.5 and fpun<=2.0 and fpur>=0.5 and fpur<=2.0):
-        MCTS.setFPU(fpun,fpur)
+        sendMessage("f %f %f\n"%(fpun,fpur))
     else:
         print("Illegal FPU!")
 
@@ -173,9 +207,9 @@ def changeNNode(xx1):
         wtt=float(lstt[3])
     except:
         print("Bad cmd!")
-    if(wtt>0):
-        MCTS.valueWt=wtt*MCTS.num_simul
-        print("value weight set to",wtt)
+    if(wtt>=0):
+        # MCTS.valueWt=wtt*MCTS.num_simul
+        sendMessage("w %f\n"%(wtt))
     else:
         print("Illegal number!")
 

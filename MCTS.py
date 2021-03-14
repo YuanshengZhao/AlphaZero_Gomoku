@@ -238,7 +238,7 @@ def add_exploration_noise(node: Node):
         node.children[i].prior = node.children[i].prior*.75+noise[i]*.25
 
 fpuReduction=1.3
-fpuReductionRoot=1.3
+fpuReductionRoot=1.0
 #fpu is modifyed in sfvs and sfpl. chaning it here no longer has any effect!
 #fpu here is in fact fpu+1 due to convention
 def setFPU(rdc,rdcr):
@@ -259,7 +259,9 @@ def ucb_score(parent: Node, child: Node,isnotroot=True):
         return prior_score-child.value()
 
 def select_child(node: Node,isnotroot=True):
-    _,action,child = max([(ucb_score(node,node.children[i],isnotroot)+np.random.uniform(-1e-4,1e-4),node.actions[i],node.children[i]) for i in range(len(node.actions))])
+    _,action,child = max([(ucb_score(node,node.children[i],isnotroot),node.actions[i],node.children[i]) for i in range(len(node.actions))])
+    # for i in range(len(node.actions)):
+        # print(i,node.actions[i],ucb_score(node,node.children[i],isnotroot))
     return action,child
 
 def applyMove(pos):
@@ -290,8 +292,8 @@ def actionScore(node:Node):
         #range:(-valueWt,num_simul)
 
 def select_action(root: Node,add_noise=True):
-    if(move_count>=15 or (not add_noise)):
-        visit_counts = [(actionScore(root.children[i])+np.random.uniform(-1e-1,1e-1),root.actions[i]) for i in range(len(root.actions))]
+    if(move_count>30 or (not add_noise)):
+        visit_counts = [(actionScore(root.children[i]),root.actions[i]) for i in range(len(root.actions))]
         _, action = max(visit_counts)
     else:
         visit_counts = np.array([(root.children[i].visit_count)**1.5 for i in range(len(root.actions))])
@@ -312,6 +314,7 @@ def run_mcts(evaluatePosition,add_noise=True):
     root.visit_count=1
     root.value_sum=evaluate(root,evaluatePosition) if side2move==0 else 1.0-evaluate(root,evaluatePosition)
     # evaluate returns absolute value: 1 for black wins 0 for white wins
+    # print(root.value_sum,root.visit_count)
     depth=0
     maxdepth=0
     if(add_noise):
@@ -327,8 +330,9 @@ def run_mcts(evaluatePosition,add_noise=True):
             action,node=select_child(node,depth>1)
             applyMove(action)
             search_path.append(node)
-
+        # printBoard(board)
         value=evaluate(node,evaluatePosition)
+        # print("val",value)
         backpropagate(search_path,value)
         for __ in range(depth):
             takeBack()
@@ -465,40 +469,69 @@ def evaluatePositionVA():# nn_old vs nn_new
             return rstt
 
 def randomMove(maxn):
-    return random.sample([[i,j] for i in range(15) for j in range(15)],random.randint(1,maxn))
+    numspl=random.randint(1,maxn)
+    if(numspl==1):
+        rndrg=2
+    elif(numspl==2):
+        rndrg=3
+    else:
+        rndrg=4
+    xmin,ymin=random.randint(0,15-rndrg),random.randint(0,15-rndrg)
+    return random.sample([[i,j] for i in range(xmin,xmin+rndrg) for j in range(ymin,ymin+rndrg)],numspl)
 
-def versus(num_games,engine):
+def toColor(ss):
+    if(ss>.7):
+        return "\033[94m"
+    elif(ss>.52):
+        return "\033[92m"
+    elif(ss<0.3):
+        return "\033[91m"
+    elif(ss<0.48):
+        return "\033[93m"
+    else:
+        return "\033[0m"
+
+def versus(num_games,engine,outf=None):
     global board,side2move,side_id,move_count
     psr=0.0
     bookmove=[]
+    if(outf is not None):
+        fpp=open(outf,"w")
     for ngames in range(num_games):
         print(ngames+1,"/",num_games,"current score for 1:",ngames-psr)
         board=np.array(np.zeros([15,15,2]), dtype=int)
         #generate book move per 2 game.
         if(not (ngames%2)):
             bookmove=randomMove(3)
+            if(outf is not None):
+                fpp.write(str(bookmove)+"\n")
             # print(bookmove)
         for ix in range(len(bookmove)):
             board[bookmove[ix][0],bookmove[ix][1],ix%2]=1
             if(ix%2):
-                print("    X - %2d %2d Book"%(bookmove[ix][0],bookmove[ix][1]))
+                print("\r    X - %2d %2d Book"%(bookmove[ix][0],bookmove[ix][1]),end="")
             else:
-                print("    O - %2d %2d Book"%(bookmove[ix][0],bookmove[ix][1]))
+                print("\r    O - %2d %2d Book"%(bookmove[ix][0],bookmove[ix][1]),end="")
         side2move=len(bookmove)%2
         side_id=ngames%2
         move_count=len(bookmove)
 
         while(winLossDraw()==-1):
-            timeReset()
+            # timeReset()
             mv,dpt=run_mcts(engine,False)
-            if(side2move==1):
-                print("%3d X %d %2d %2d %.3f, d %2d "%(move_count,side_id,mv[0]//15,mv[0]%15,mv[2],dpt),end="")
-                printTime()
-            else:
-                print("%3d O %d %2d %2d %.3f, d %2d "%(move_count,side_id,mv[0]//15,mv[0]%15,mv[2],dpt),end="")
-                printTime()
+            print("\r%s%-3d %s %d%s %2d %2d %.3f, d %-2d \033[0m"%(
+                    toColor(0.5 if ngames==0 else (ngames-psr)/ngames),
+                    move_count,
+                    "X" if side2move==1 else "O",
+                    side_id,
+                    toColor(mv[2] if side_id==1 else 1.0-mv[2]),
+                    mv[0]//15,mv[0]%15,mv[2],dpt),end="")
+            if(outf is not None):
+                fpp.write("%-3d %d %.3f\n"%(move_count,side_id,mv[2]))
+            # printTime()
             applyMove(mv[0])
             side_id=1-side_id
+        print("\r")
         grst=winLossDraw()
         printBoard(board)
         if(grst==1 or grst==0):
@@ -507,7 +540,9 @@ def versus(num_games,engine):
         else:
             psr+=.5
             print(grst,"draw!")
-
+        print("book move:",bookmove)
+    if(outf is not None):
+        fpp.close()
     print(1,"rate",(num_games-psr)/num_games)
     print(0,"rate",psr/num_games)
     return num_games-psr
@@ -542,7 +577,7 @@ def evaluatePositionA():# nn_old
         hashTB.setValue(kkey,board,rstt)
         return rstt
 def evaluatePositionA2():# nn_new
-    kkey,rstt=hashTB.getValue(board)
+    kkey,rstt=hashTB2.getValue(board)
     if(len(rstt)>0):
         return rstt
     else:
@@ -551,7 +586,7 @@ def evaluatePositionA2():# nn_new
             rstt[-1]=1-rstt[-1]
         else:
             rstt=a0eng2.a0_eng(np.array([board.copy()],dtype='<f4'),training=False)[0].numpy()
-        hashTB.setValue(kkey,board,rstt)
+        hashTB2.setValue(kkey,board,rstt)
         return rstt
 
 
@@ -560,20 +595,22 @@ def selfPlay(num_games,engine,outfile,maxgames=40):
     x_tr=[]
     y_tr=[]
     totalTime=num_games*9*60.0
+    gamesum=0
 #at least 1 game will be played
     for ngames in range(maxgames):
         print("playing game",ngames+1)
         x_tr0=[]
         y_tr0=[]
         board=np.array(np.zeros([15,15,2]), dtype=int)
-        bookmove=randomMove(3)
+        # bookmove=randomMove(3)
+        bookmove=[] #no book move given in training
         lbm=len(bookmove)
         for ix in range(lbm):
             board[bookmove[ix][0],bookmove[ix][1],ix%2]=1
             if(ix%2):
-                print("    X - %2d %2d Book"%(bookmove[ix][0],bookmove[ix][1]))
+                print("\r    X - %2d %2d Book"%(bookmove[ix][0],bookmove[ix][1]),end="")
             else:
-                print("    O - %2d %2d Book"%(bookmove[ix][0],bookmove[ix][1]))
+                print("\r    O - %2d %2d Book"%(bookmove[ix][0],bookmove[ix][1]),end="")
         side2move=lbm%2
         side_id=ngames%2
         move_count=lbm
@@ -584,16 +621,18 @@ def selfPlay(num_games,engine,outfile,maxgames=40):
             else:
                 x_tr0.append(1.0*board.copy())
             mv,dpt=run_mcts(engine,True)
-            if(side2move==1):
-                print("%3d X %d %2d %2d %.3f, d %2d"%(move_count,side_id,mv[0]//15,mv[0]%15,mv[2],dpt))
-            else:
-                print("%3d O %d %2d %2d %.3f, d %2d"%(move_count,side_id,mv[0]//15,mv[0]%15,mv[2],dpt))
+            print("\r%-3d %s %d %2d %2d %.3f, d %-2d"%(move_count,"X" if side2move==1 else "O",
+                side_id,mv[0]//15,mv[0]%15,mv[2],dpt),end="")
             applyMove(mv[0])
             side_id=1-side_id
             y_tr0.append(np.append(mv[1].flatten(),[.5]))
+        print("\r")
         grst=winLossDraw()
         printBoard(board)
         print("result of game:",grst,"in",move_count,"moves")
+        print("book move:",bookmove)
+        gamesum+=grst
+        print("black score: %.3f"%(gamesum/(ngames+1)))
         for i in range(len(y_tr0)):
             y_tr0[i][-1]=grst if (i+lbm)%2==0 else (1-grst) 
         # print(y_tr0[-1][-1])
@@ -610,5 +649,5 @@ def selfPlay(num_games,engine,outfile,maxgames=40):
         if(printTime(totalTime)):
             break
 
-    print("played",ngames+1,"game(s)")
+    print("played",ngames+1,"game(s); black score: %.3f"%(gamesum/(ngames+1)))
     np.savez(outfile,x_tr,y_tr)
