@@ -39,9 +39,9 @@ def waitForComplete():
 def selfPlay():
     print("self play...")
     cmd="./Parallel_do.sh"
-    rsed=random.sample(range(2147483647),n_proc)
+    rsed=random.sample(range(2147483629),n_proc)
     for i in range(n_proc):
-        cmd+=" \"nice -n 19 ./ag t 15000 gm"+str(i+1)+" "+str(rsed[i])+"\""
+        cmd+=" \"nice -n 19 ./ag.exe t 1000 gm"+str(i+1)+" "+str(rsed[i])+"\""
     print(cmd)
     os.system(cmd)
     waitForComplete()
@@ -87,9 +87,9 @@ def evaluate():
     print("evaluate...")
     os.system("python3 opening_generator.py")
     cmd="./Parallel_do.sh"
-    rsed=random.sample(range(2147483647),n_proc)
+    rsed=random.sample(range(2147483629),n_proc)
     for i in range(n_proc):
-        cmd+=" \"nice -n 19 ./ag v gm"+str(i+1)+" op"+str(i+1)+" "+str(rsed[i])+"\""
+        cmd+=" \"nice -n 19 ./ag.exe v gm"+str(i+1)+" op"+str(i+1)+" "+str(rsed[i])+"\""
     os.system(cmd)
     waitForComplete()
 
@@ -112,7 +112,8 @@ for bigr in range(Nbgr):
         os.system("nice -n 19 python3 SaveMD.py")
         fp.write("success; net saved to lv "+str(vers)+"\n")
         fp.close()
-        break
+        #remove game files, since new files will append to old ones.
+        os.system("rm ./games/gm*")
     else:
         print("fail")
         discardNet()

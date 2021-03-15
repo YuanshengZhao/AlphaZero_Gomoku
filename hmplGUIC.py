@@ -5,7 +5,7 @@ import multiprocessing
 import tkinter as tk
 from tkinter import messagebox
 import time
-engine = Popen(['./ag'], stdin=PIPE,stdout=PIPE,encoding='ascii',bufsize=0)
+engine = Popen(['./ag.exe', 'h'], stdin=PIPE,stdout=PIPE,encoding='ascii',bufsize=0)
 gameover=0
 cmdout="NULL"
 def getoutput():

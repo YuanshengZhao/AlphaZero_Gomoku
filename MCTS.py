@@ -232,8 +232,19 @@ def evaluate(node: Node,evaluatePosition):
         node.children[i].set_state(policy[i]/policy_sum,tp)
     return policy_logits[-1]
 
+#manually generate to compare with C code!
+# def mn_dirichlet(lth):
+#     gm=np.array([np.random.gamma(.05,1.0) for _ in range(lth)])
+#     gm=gm/np.sum(gm)
+#     return gm
+
 def add_exploration_noise(node: Node):
     noise=np.random.dirichlet(np.full(len(node.actions),.05))
+    # noise=mn_dirichlet(len(node.actions))
+    # fp=open("gamma.txt","a+")
+    # for kk in noise:
+    #     fp.write(str(kk)+"\n")
+    # fp.close()
     for i in range(len(node.actions)):
         node.children[i].prior = node.children[i].prior*.75+noise[i]*.25
 
@@ -291,6 +302,22 @@ def actionScore(node:Node):
         return node.visit_count-valueWt*node.value()
         #range:(-valueWt,num_simul)
 
+# def mn_choice(lst,prb):
+#     cp=np.zeros(len(prb))
+#     cp[0]=prb[0]
+#     for i in range(len(prb)-1):
+#         cp[i+1]=cp[i]+prb[i+1]
+#     rnd=np.random.uniform(0.,1.)
+#     fp=open("uniform.txt","a+")
+#     fp.write(str(rnd)+"\n")
+#     fp.close()
+#     rnd*=cp[-1]
+#     for i in range(len(prb)):
+#         if(rnd<cp[i]):
+#             return lst[i]
+
+
+
 def select_action(root: Node,add_noise=True):
     if(move_count>30 or (not add_noise)):
         visit_counts = [(actionScore(root.children[i]),root.actions[i]) for i in range(len(root.actions))]
@@ -299,6 +326,7 @@ def select_action(root: Node,add_noise=True):
         visit_counts = np.array([(root.children[i].visit_count)**1.5 for i in range(len(root.actions))])
         visit_counts_sum=np.sum(visit_counts)
         action = np.random.choice(root.actions,p=visit_counts/visit_counts_sum)
+        # action = mn_choice(root.actions,visit_counts/visit_counts_sum)
 
     pol_map=np.zeros([15,15])
     visit_counts = np.array([root.children[i].visit_count for i in range(len(root.actions))])

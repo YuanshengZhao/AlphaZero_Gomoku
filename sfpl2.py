@@ -11,7 +11,7 @@ if(len(sys.argv)<=1):
     print("Error! No argument given! Quiting.")
     quit()
 
-alwaysNew=True
+alwaysNew=False
 fpu,fpu1=1.3,1.0
 t0,t1=5,5
 if(alwaysNew):#use newest engine to generate

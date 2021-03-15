@@ -10,5 +10,6 @@ test*
 *.log
 libtf/
 RNG*/
-ag
+*.exe
 *test*
+*.txt

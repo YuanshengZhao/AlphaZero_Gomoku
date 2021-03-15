@@ -16,7 +16,8 @@ auto side2move=0;
 int movelist[maxPossibleMoves];
 auto move_count=0;
 auto num_simul=800;
-auto sfmxMoves=30;
+auto const sfmxMoves=30;
+// FILE *gammadis,*uniformdis;
 
 void printBoard()
 {
@@ -289,8 +290,9 @@ float evaluate(NODE* node,A0ENGINE* engine)
     if(wld!=-1.f) return wld;
     float* policy_logits=NULL;
     int hskey;
+    bool isrun=false;
     // policy_logits=NULL;
-    engine->zobrist->getValue(board[0][0],&hskey);
+    policy_logits=engine->zobrist->getValue(board[0][0],&hskey);
     if(!policy_logits)//not found in hash table
     {
         // printf("not found!");
@@ -299,6 +301,7 @@ float evaluate(NODE* node,A0ENGINE* engine)
         engine->runEngine();
         policy_logits=(float*)TF_TensorData(engine->OutputValues[0]);
         engine->zobrist->setValue(hskey,policy_logits);
+        isrun=true;
     }
     auto nump=0;
     auto px=0,py=0;
@@ -323,7 +326,7 @@ float evaluate(NODE* node,A0ENGINE* engine)
     }
     node->num_child=nump;
     float rvalue=side2move? 1-policy_logits[maxPossibleMoves] : policy_logits[maxPossibleMoves];
-    TF_DeleteTensor(engine->OutputValues[0]);
+    if(isrun) TF_DeleteTensor(engine->OutputValues[0]);
     return rvalue;
 }
 
@@ -336,6 +339,7 @@ void add_exploration_noise(NODE *node)
     for(auto i=0;i<node->num_child;i++)
     {
         noise[i]=GammaDistribution(mt_19937);
+        // fscanf(gammadis,"%f\n",&noise[i]);
         noise_sum+=noise[i];
     }
     for(auto i=0;i<node->num_child;i++)
@@ -349,7 +353,7 @@ float pb_c;
 
 float ucb_score(NODE *parent, NODE *child, bool isnotroot=true)
 {
-    float prior_score=pb_c/((float)(child->visit_count+1))*child->prior;
+    float prior_score=pb_c/((float)(child->visit_count+1))*(child->prior);
     if(child->visit_count==0)
         return isnotroot? (prior_score-fpuReduction+parent->value()) : (prior_score-fpuReductionRoot+parent->value());
     else
@@ -359,7 +363,7 @@ float ucb_score(NODE *parent, NODE *child, bool isnotroot=true)
 int select_child(NODE *node,bool isnotroot=true)
 {
     // return mt_19937()%node->num_child;
-    float maxscore=-1e10,score;
+    float maxscore=-INFINITY,score;
     int maxidx=0;
     pb_c=(logf((node->visit_count+19653)/19652.0f) + 1.25f) * sqrtf(node->visit_count);
     for(auto i=0;i<node->num_child;i++)
@@ -414,7 +418,7 @@ float actionScore(NODE *node)
 
 int select_action(NODE *root,bool add_noise=true)
 {
-    float maxscore=-1e10,cscore;
+    float maxscore=-INFINITY,cscore;
     int action=0;
     float cvcounts[maxPossibleMoves+1];
     float rnd;
@@ -439,9 +443,11 @@ int select_action(NODE *root,bool add_noise=true)
         cvcounts[0]=0.f;
         for(auto i=0;i<root->num_child;i++)
         {
-            cvcounts[i+1]=cvcounts[i]+pow(root->children[i]->visit_count/maxscore,1.5);
+            cvcounts[i+1]=cvcounts[i]+powf((root->children[i]->visit_count)/maxscore,1.5f);
         }
         rnd=UniformDistribution(mt_19937)*cvcounts[root->num_child];
+        // fscanf(uniformdis,"%f\n",&rnd);
+        // rnd*=cvcounts[root->num_child];
         // action=root->actions[(root->num_child)-1];
         // printf("%f %f\n",cvcounts[root->num_child],rnd);
         for(auto i=0;i<root->num_child;i++)
@@ -602,6 +608,11 @@ void sfpl(int npos,const char* out_file,int rseed)
     sprintf(ff,"games/%s.y",out_file);
     fpy=fopen(ff,"a+b");
     if(!fpy){printf("error! %s\n",ff);return;}
+    printf("fpu = %.3f | %.3f\n",fpuReduction,fpuReductionRoot);
+
+    // gammadis=fopen("gamma.txt","r");
+    // uniformdis=fopen("uniform.txt","r");
+
     while(totps<npos)
     {
         printf("game %d\n",ngames+1);
@@ -618,7 +629,8 @@ void sfpl(int npos,const char* out_file,int rseed)
         }
         for(auto kk=0;kk<move_count;kk++)
         {
-            bufy[kk*(maxPossibleMoves+1)+maxPossibleMoves]=(move_count-kk)%2? game_rst : 1-game_rst;
+            bufy[kk*(maxPossibleMoves+1)+maxPossibleMoves]=kk%2? 1-game_rst : game_rst;
+            //game_rst is absolute result!
         }
         ngames++;
         gs_sum+=game_rst;
@@ -634,6 +646,8 @@ void sfpl(int npos,const char* out_file,int rseed)
     fclose(fpy);
     delete[] bufx;
     delete[] bufy;
+    // fclose(gammadis);
+    // fclose(uniformdis);
 }
 
 void sfvs(const char* out_file,const char* opening,int rseed)
