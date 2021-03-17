@@ -54,15 +54,15 @@ print("avg score: ",np.average(y_tr[:,-1]))
 print("draws: ",np.sum(y_tr[:,-1]==.5))
 
 print("evaluation 1:")
-a0eng.a0_eng.evaluate(x_tr,y_tr)
+print(a0eng.a0_eng.evaluate(x_tr,y_tr))
 
 indeces = np.random.permutation(lxtr)
 x_tr=x_tr[indeces]
 y_tr=y_tr[indeces]
 print("data shuffled")
 
-print("evaluation 2:")
-a0eng.a0_eng.evaluate(x_tr,y_tr)
+# print("evaluation 2:")
+# print(a0eng.a0_eng.evaluate(x_tr,y_tr))
 
 btze=512
 prtt=int(lxtr/btze*.95)*btze

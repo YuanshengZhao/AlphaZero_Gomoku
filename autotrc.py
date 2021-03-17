@@ -11,7 +11,7 @@ import random
 n_proc=32
 cpuFreeThreshold=1.0
 
-bigr,Nbgr=0,1
+bigr,Nbgr=0,24
 smlr,Nslr=0,1
 
 start_time = time.time()

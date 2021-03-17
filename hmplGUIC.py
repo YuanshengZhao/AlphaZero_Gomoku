@@ -36,7 +36,7 @@ def sendMessage(msg):
     engine.stdin.write(msg)
     getoutput()
 
-nsu,fpun,fpur,wtt=800,1.3,1.0,0.0
+nsu,fpun,fpur,wtt=300,1.3,1.0,0.3
 time.sleep(5)
 sendMessage("n %d\n"%(nsu))
 sendMessage("f %f %f\n"%(fpun,fpur))
@@ -167,7 +167,7 @@ def ComputerMove():
         # print("%3d O %2d %2d %.3f, d %2d"%(MCTS.move_count,mv[0]//15,mv[0]%15,mv[2],dpt))
     # MCTS.printTime()
     # print(cmdout,cmdout[10:12],cmdout[13:15],cmdout[16:21])
-    playStoneXY(int(cmdout[10:12]),int(cmdout[13:15]),float(cmdout[16:21]))
+    playStoneXY(int(cmdout[14:16]),int(cmdout[17:19]),float(cmdout[20:25]))
 
 def playStone(event):
     global isfree

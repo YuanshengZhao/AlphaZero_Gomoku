@@ -141,12 +141,24 @@ class ZOBRIST
 {
 public:
     ZOBRIST(const int sze);
-    int hash_size,table[2*maxPossibleMoves],initkey;
+    int hash_size,table[2*maxPossibleMoves],initkey,currentkey;
     float *values,*boardcheck;
-    float* getValue(float *boardX, int *key_out);
-    void setValue(int key_in, float *rst_in);
+    float* getValue(float *boardX);
+    void setValue(float *rst_in, float *board_in);
+    void updatekey(int pos);
+    void clearkey();
 };
 
+void ZOBRIST::updatekey(int pos)
+{
+    currentkey^=table[pos];
+}
+
+
+void ZOBRIST::clearkey()
+{
+    currentkey=initkey;
+}
 ZOBRIST::ZOBRIST(const int sze)
 {
     auto lg=1;
@@ -155,31 +167,33 @@ ZOBRIST::ZOBRIST(const int sze)
     printf("Hash size = %d\n",hash_size);
     for(auto i=0;i<2*maxPossibleMoves;i++)
         table[i]=mt_19937()%hash_size;
-    initkey=mt_19937()%hash_size;
+    currentkey=initkey=mt_19937()%hash_size;
     values=new float[(maxPossibleMoves+1)*hash_size];
     boardcheck=new float[2*maxPossibleMoves*hash_size];
     for(auto i=0;i<2*maxPossibleMoves*hash_size;i++)
     boardcheck[i]=-1;
 }
-float* ZOBRIST::getValue(float *boardX, int *key_out)
+float* ZOBRIST::getValue(float *boardX)
 {
-    int key=initkey;
-    for(auto ii=0;ii<2*maxPossibleMoves;ii++)
-    {
-        if(boardX[ii]==1.f) key^=table[ii];
-    }
-    *key_out=key;
-    // printf("key: %d\n",key);
-    if(memcmp(boardX,&boardcheck[key*2*maxPossibleMoves],sizeof(board)) == 0)
-        return &values[key*(maxPossibleMoves+1)];
+    // int key=initkey;
+    // for(auto ii=0;ii<2*maxPossibleMoves;ii++)
+    // {
+        // if(boardX[ii]==1.f) key^=table[ii];
+    // }
+    // *key_out=key;
+    // if(key!=currentkey)
+        // printf("WARNING: bat key: %d | %d\n\n",key,currentkey);
+    if(memcmp(boardX,&boardcheck[currentkey*2*maxPossibleMoves],sizeof(board)) == 0)
+        return &values[currentkey*(maxPossibleMoves+1)];
     else
         return NULL;
 
 }
 
-void ZOBRIST::setValue(int key_in, float *rst_in)
+void ZOBRIST::setValue(float *rst_in, float *board_in)
 {
-    memcpy(&values[key_in*(maxPossibleMoves+1)],rst_in,(maxPossibleMoves+1)*sizeof(float));
+    memcpy(&values[currentkey*(maxPossibleMoves+1)],rst_in,(maxPossibleMoves+1)*sizeof(float));
+    memcpy(&boardcheck[currentkey*2*maxPossibleMoves],board_in,(maxPossibleMoves*2)*sizeof(float));
 }
 
 class A0ENGINE
@@ -274,7 +288,7 @@ int A0ENGINE::initEngine(const char* saved_model_dir)
     InputValues[0] = int_tensor;
     engBoard=(float*)TF_TensorData(InputValues[0]);
 
-    zobrist=new ZOBRIST(60000);
+    zobrist=new ZOBRIST(500000);
     return 0;
 }
 
@@ -289,10 +303,9 @@ float evaluate(NODE* node,A0ENGINE* engine)
     auto wld=winLossDraw();
     if(wld!=-1.f) return wld;
     float* policy_logits=NULL;
-    int hskey;
     bool isrun=false;
     // policy_logits=NULL;
-    policy_logits=engine->zobrist->getValue(board[0][0],&hskey);
+    policy_logits=engine->zobrist->getValue(board[0][0]);//hash table stores absolute positions: [black,white] not [self,opponent].
     if(!policy_logits)//not found in hash table
     {
         // printf("not found!");
@@ -300,7 +313,7 @@ float evaluate(NODE* node,A0ENGINE* engine)
         else memcpy(engine->engBoard,board[0][0],sizeof(board));
         engine->runEngine();
         policy_logits=(float*)TF_TensorData(engine->OutputValues[0]);
-        engine->zobrist->setValue(hskey,policy_logits);
+        engine->zobrist->setValue(policy_logits,board[0][0]);
         isrun=true;
     }
     auto nump=0;
@@ -378,23 +391,25 @@ int select_child(NODE *node,bool isnotroot=true)
     return maxidx;
 }
 
-void applyMove(int pos)
+void applyMove(int pos,ZOBRIST *hzobrist)
 {
     auto px=pos/15,py=pos%15;
     board[px][py][side2move]=inv_board[px][py][1-side2move]=1;
+    hzobrist->updatekey(pos*2+side2move);
     side2move=1-side2move;
     movelist[move_count]=pos;
     move_count+=1;
 }
-inline void applyMove(int px,int py){applyMove(px*15+py);}
+inline void applyMove(int px,int py,ZOBRIST *hzobrist){applyMove(px*15+py,hzobrist);}
 
-void takeBack()
+void takeBack(ZOBRIST *hzobrist)
 {
     move_count-=1;
     auto pos=movelist[move_count];
     auto px=pos/15,py=pos%15;
     side2move=1-side2move;
     board[px][py][side2move]=inv_board[px][py][1-side2move]=0;
+    hzobrist->updatekey(pos*2+side2move);
 }
 
 void backpropagate(NODE **search_path,int lenth,float value)
@@ -443,7 +458,8 @@ int select_action(NODE *root,bool add_noise=true)
         cvcounts[0]=0.f;
         for(auto i=0;i<root->num_child;i++)
         {
-            cvcounts[i+1]=cvcounts[i]+powf((root->children[i]->visit_count)/maxscore,1.5f);
+            // cvcounts[i+1]=cvcounts[i]+powf((root->children[i]->visit_count)/maxscore,1.125f);
+            cvcounts[i+1]=cvcounts[i]+(root->children[i]->visit_count)/maxscore;
         }
         rnd=UniformDistribution(mt_19937)*cvcounts[root->num_child];
         // fscanf(uniformdis,"%f\n",&rnd);
@@ -486,14 +502,14 @@ int run_mcts(A0ENGINE* engine,bool sel_noise,bool dir_noise,float *prb_out,float
         while(cr_node->expanded())
         {
             idx=select_child(cr_node,depth>1);
-            applyMove(cr_node->actions[idx]);
+            applyMove(cr_node->actions[idx],engine->zobrist);
             cr_node=cr_node->children[idx];
             search_path[depth++]=cr_node;
         }
         // printBoard();
         value=evaluate(cr_node,engine);
         backpropagate(search_path,depth,value);
-        for(auto tt=1;tt<depth;tt++) takeBack();        
+        for(auto tt=1;tt<depth;tt++) takeBack(engine->zobrist);
         maxdepth=maxdepth>depth? maxdepth : depth;
     }
     high_resolution_clock::time_point t2 = high_resolution_clock::now();
@@ -510,13 +526,14 @@ int run_mcts(A0ENGINE* engine,bool sel_noise,bool dir_noise,float *prb_out,float
     return select_action(&rootnode,sel_noise);
 }
 
-void clearAll()
+void clearAll(ZOBRIST *hzobrist)
 {
     move_count=0;
     side2move=0;
     for(auto px=0;px<15;px++)
         for(auto py=0;py<15;py++)
             board[px][py][0]=inv_board[px][py][0]=board[px][py][1]=inv_board[px][py][1]=0;
+    hzobrist->clearkey();
 }
 
 void hmpl()
@@ -539,7 +556,7 @@ void hmpl()
         case 'p':
             if(scanf("%d %d",&px,&py)!=2) {printf("Invalid command\n"); break;}
             printf("Play %d %d\n",px,py);
-            if(0<=px and px<15 and 0<=py and py<15 and board[px][py][0]==board[px][py][0]) applyMove(px,py);
+            if(0<=px and px<15 and 0<=py and py<15 and board[px][py][0]==board[px][py][0]) applyMove(px,py,a0eng.zobrist);
             else printf("Illegal\n");
             printBoard();
             if(winLossDraw()>-.5f) printf("Game over\n");
@@ -567,11 +584,11 @@ void hmpl()
             break;
         case 'b':
             if(move_count==0) printf("Cannot take back\n");
-            else{printf("Take back\n");takeBack();}
+            else{printf("Take back\n");takeBack(a0eng.zobrist);}
             break;
         case 'c':
             printf("New game\n");
-            clearAll();
+            clearAll(a0eng.zobrist);
             break;
         case 'q':
             printf("Quit\n");
@@ -616,7 +633,7 @@ void sfpl(int npos,const char* out_file,int rseed)
     while(totps<npos)
     {
         printf("game %d\n",ngames+1);
-        clearAll();
+        clearAll(a0eng.zobrist);
         while(move_count==0 or (game_rst=winLossDraw())< -.5)
         {
             if(side2move) memcpy(&bufx[move_count*(maxPossibleMoves*2)],inv_board[0][0],sizeof(inv_board));
@@ -625,7 +642,7 @@ void sfpl(int npos,const char* out_file,int rseed)
             act=run_mcts(&a0eng,true,true,&bufy[move_count*(maxPossibleMoves+1)],&val,&dpt,&tmu);
             printf("\r%3d %2d %2d %.3f %3d %.3f ",move_count,act/15,act%15,val,dpt,tmu);
             fflush(stdout);
-            applyMove(act);
+            applyMove(act,a0eng.zobrist);
         }
         for(auto kk=0;kk<move_count;kk++)
         {
@@ -702,11 +719,13 @@ void sfvs(const char* out_file,const char* opening,int rseed)
     for(ngames=0;ngames<2;ngames++)
     {
         printf("game %d\n",ngames+1);
-        clearAll();
+        a0eng2.zobrist->clearkey();
+        clearAll(a0eng1.zobrist);
         for(auto kk=0;kk<nops;kk++) 
         {
             fprintf(fp,"%3d b %2d %2d\n",move_count,opns[kk][0],opns[kk][1]);
-            applyMove(opns[kk][0],opns[kk][1]);
+            a0eng2.zobrist->updatekey((opns[kk][0]*15+opns[kk][1])*2+side2move);//updatekey must be called before applyMove!
+            applyMove(opns[kk][0],opns[kk][1],a0eng1.zobrist);
         }
         while(move_count==0 or (game_rst=winLossDraw())< -.5)
         {
@@ -716,7 +735,8 @@ void sfvs(const char* out_file,const char* opening,int rseed)
             printf("\r%3d %d %2d %2d %.3f %3d %.3f ",move_count,side_id,act/15,act%15,val,dpt,tmu);
             fflush(stdout);
             fprintf(fp,"%3d %d %2d %2d %.3f %3d %.3f\n",move_count,side_id,act/15,act%15,val,dpt,tmu);
-            applyMove(act);
+            a0eng2.zobrist->updatekey(act*2+side2move);//updatekey must be called before applyMove!
+            applyMove(act,a0eng1.zobrist);
         }
         printf("\r");
         printBoard();
