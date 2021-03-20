@@ -5,7 +5,7 @@ import os
 import time
 import struct
 
-a0eng=RN_Gomoku.A0_ENG(64,"./RNG64.tf",1e-1/(2.0))
+a0eng=RN_Gomoku.A0_ENG(64,"./RNG64.tf",2e-3)
 
 fn="games/gm1.x"
 sz=os.stat(fn).st_size//4
@@ -53,8 +53,8 @@ print(lxtr,len(y_tr)," training samples",luxtr,luytr,"unique")
 print("avg score: ",np.average(y_tr[:,-1]))
 print("draws: ",np.sum(y_tr[:,-1]==.5))
 
-print("evaluation 1:")
-print(a0eng.a0_eng.evaluate(x_tr,y_tr))
+# print("evaluation 1:")
+# print(a0eng.a0_eng.evaluate(x_tr,y_tr))
 
 indeces = np.random.permutation(lxtr)
 x_tr=x_tr[indeces]
@@ -64,7 +64,7 @@ print("data shuffled")
 # print("evaluation 2:")
 # print(a0eng.a0_eng.evaluate(x_tr,y_tr))
 
-btze=512
+btze=2048
 prtt=int(lxtr/btze*.95)*btze
 hist=a0eng.a0_eng.fit(x_tr[:prtt],y_tr[:prtt],epochs=1,shuffle=True,batch_size=btze,validation_data=(x_tr[prtt:],y_tr[prtt:]))
 

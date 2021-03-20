@@ -11,7 +11,7 @@ import random
 n_proc=32
 cpuFreeThreshold=1.0
 
-bigr,Nbgr=0,24
+bigr,Nbgr=0,100
 smlr,Nslr=0,1
 
 start_time = time.time()
@@ -93,7 +93,11 @@ def evaluate():
     os.system(cmd)
     waitForComplete()
 
+start_date=time.localtime().tm_mday
+
 for bigr in range(Nbgr):
+    noww=time.localtime()
+    if(noww.tm_hour>=11 and noww.tm_mday!=start_date): break # stop after 11:00 next day
     print("training progress: ",bigr+1,"/",Nbgr)
     time.sleep(10)
     for smlr in range(Nslr):

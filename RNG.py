@@ -179,7 +179,7 @@ class AZV(tf.keras.metrics.Metric):
 class A0_ENG(object):
     def __init__(self,nflter,wt_file,lgrt=1e-2):
         self.optz=tf.keras.optimizers.SGD(learning_rate=lgrt,momentum=0.9,nesterov=True,clipvalue=1e-1)
-        # self.optz=tf.keras.optimizers.Adamax(learning_rate=1.0e-4)
+        # self.optz=tf.keras.optimizers.Adamax(learning_rate=lgrt)
         self.a0_eng = RN_GM(nflter)
 
         self.gmloss=MixedLoss()

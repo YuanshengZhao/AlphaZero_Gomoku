@@ -708,10 +708,10 @@ void sfvs(const char* out_file,const char* opening,int rseed)
         printf("Flip y\n");
         for(auto kk=0;kk<nops;kk++) {opns[kk][1]=14-opns[kk][1];}
     }
-    printf("x-shift: %2d\n",(act=mt_19937()%3-1));
-    for(auto kk=0;kk<nops;kk++) {opns[kk][0]+=act;}
-    printf("y-shift: %2d\n",(act=mt_19937()%3-1));
-    for(auto kk=0;kk<nops;kk++) {opns[kk][1]+=act;}
+    // printf("x-shift: %2d\n",(act=mt_19937()%3-1));
+    // for(auto kk=0;kk<nops;kk++) {opns[kk][0]+=act;}
+    // printf("y-shift: %2d\n",(act=mt_19937()%3-1));
+    // for(auto kk=0;kk<nops;kk++) {opns[kk][1]+=act;}
 
     sprintf(ff,"eval/%s.txt",out_file);
     fp=fopen(ff,"w");
