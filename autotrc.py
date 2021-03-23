@@ -41,16 +41,17 @@ def selfPlay():
     cmd="./Parallel_do.sh"
     rsed=random.sample(range(2147483629),n_proc)
     for i in range(n_proc):
-        cmd+=" \"nice -n 19 ./ag.exe t 1000 gm"+str(i+1)+" "+str(rsed[i])+"\""
+        cmd+=" \"nice -n 19 ./ag.exe t 2000 gm"+str(i+1)+" "+str(rsed[i])+"\""
     print(cmd)
     os.system(cmd)
     waitForComplete()
-    fp=open("./trLog.log","a+")
+    fp=open("./trLog64.log","a+")
     fp.write(time.strftime("%m/%d/%Y %H:%M:%S",time.localtime())+" finished self play\n")
     fp.close()
 
 def training():
-    os.system("nice -n 19 python3 tr2c.py")
+    os.system("nice -n 19 python3 tr2c.py 64")
+    time.sleep(30)
     os.system("nice -n 19 python3 SaveMD.py n")
 
 def getevalrst():
@@ -99,14 +100,14 @@ for bigr in range(Nbgr):
     noww=time.localtime()
     if(noww.tm_hour>=11 and noww.tm_mday!=start_date): break # stop after 11:00 next day
     print("training progress: ",bigr+1,"/",Nbgr)
-    time.sleep(10)
+    time.sleep(30)
     for smlr in range(Nslr):
         selfPlay()
         training()
-        time.sleep(10)
+        time.sleep(30)
     evaluate()
     est,dbls=getevalrst()
-    fp=open("./trLog.log","a+")
+    fp=open("./trLog64.log","a+")
     fp.write(time.strftime("%m/%d/%Y %H:%M:%S",time.localtime())+" ")
     fp.write("test score: "+str(est)+" /"+str(n_proc*2)+" w/ "+str(dbls)+" dbls ")
     if(est-dbls*0.5 > n_proc):
@@ -116,6 +117,9 @@ for bigr in range(Nbgr):
         os.system("nice -n 19 python3 SaveMD.py")
         fp.write("success; net saved to lv "+str(vers)+"\n")
         fp.close()
+        #on success train a 128-filter version and 20-block version
+        os.system("nice -n 19 python3 tr2c.py 128")
+        os.system("nice -n 19 python3 tr2c.py 20")
         #remove game files, since new files will append to old ones.
         os.system("rm ./games/gm*")
     else:

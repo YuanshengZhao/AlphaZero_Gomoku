@@ -6,10 +6,10 @@ import os
 from tensorflow.keras.regularizers import l2
 se_chnl=32
 
-brnp={
-    'rmax': 3.125, 
-    'rmin': 0.32,
-    'dmax': 4.0
+brnp={#strong restriction should be used at the beginning of training
+    'rmax': 1.25, 
+    'rmin': 0.8,
+    'dmax': 0.5
     # 'rmax': 3.125, 
     # 'rmin': 0.32,
     # 'dmax': 5.0
@@ -133,6 +133,48 @@ class RN_GM(tf.keras.Model):
         vr=self.dense2(tf.nn.relu(self.batnorv1(self.dense1(self.flat1(self.convv1(x))),training=training)))
         return self.conca([pr,vr])
 
+
+class RN_GM_v2(tf.keras.Model):
+    def __init__(self,nflter,nblock):
+        super(RN_GM_v2, self).__init__()
+        self.nblk=nblock
+        #init conv
+        self.conv01 = tf.keras.layers.Conv2D(nflter,3,padding='same',use_bias=False,kernel_regularizer=l2(2e-4))
+        #seRN tower
+        self.convbs = [[tf.keras.layers.Conv2D(nflter,3,padding='same',use_bias=False,kernel_regularizer=l2(2e-4)),
+                        tf.keras.layers.Conv2D(nflter,3,padding='same',use_bias=False,kernel_regularizer=l2(2e-4))]
+                        for _ in range(nblock)]
+        self.selys = [[tf.keras.layers.AveragePooling2D(15),
+                       tf.keras.layers.Dense(se_chnl,activation='relu',kernel_regularizer=l2(2e-4),bias_regularizer=l2(2e-5)),
+                       tf.keras.layers.Dense(nflter,activation='sigmoid',kernel_regularizer=l2(2e-4),bias_regularizer=l2(2e-5))]
+                       for _ in range(nblock)]
+        #pv head
+        self.convp1 = tf.keras.layers.Conv2D(nflter ,3,padding='same',kernel_regularizer=l2(2e-4),bias_regularizer=l2(2e-5))
+        self.convp2 = tf.keras.layers.Conv2D(1 ,3,padding='same',kernel_regularizer=l2(2e-4),bias_regularizer=l2(2e-5))
+        self.flat1 = tf.keras.layers.Flatten()
+        self.flat2 = tf.keras.layers.Flatten()
+        self.conca = tf.keras.layers.Concatenate()
+        self.convv1 = tf.keras.layers.Conv2D(se_chnl ,3,padding='same',kernel_regularizer=l2(2e-4),bias_regularizer=l2(2e-5))
+        self.dense1 = tf.keras.layers.Dense(128,use_bias=False,kernel_regularizer=l2(2e-4))
+        self.dense2 = tf.keras.layers.Dense(1,activation='sigmoid',kernel_regularizer=l2(2e-4),bias_regularizer=l2(2e-5))
+        #bn
+        self.batnor01=tf.keras.layers.BatchNormalization(beta_regularizer=l2(2e-5),gamma_regularizer=l2(2e-5),renorm=True,renorm_clipping=brnp)
+        self.batnorbs = [(tf.keras.layers.BatchNormalization(beta_regularizer=l2(2e-5),gamma_regularizer=l2(2e-5),renorm=True,renorm_clipping=brnp),
+                          tf.keras.layers.BatchNormalization(beta_regularizer=l2(2e-5),gamma_regularizer=l2(2e-5),renorm=True,renorm_clipping=brnp))
+                        for _ in range(nblock)]
+        self.batnorv1=tf.keras.layers.BatchNormalization(beta_regularizer=l2(2e-5),gamma_regularizer=l2(2e-5),renorm=True,renorm_clipping=brnp)
+
+    def call(self, inputs, training=False):
+        x=tf.nn.relu(self.batnor01(self.conv01(inputs),training=training))# init conv
+        # se_RN tower
+        for kn in range(self.nblk):
+            y=self.convbs[kn][1](tf.nn.relu(self.batnorbs[kn][0](self.convbs[kn][0](x),training=training)))
+            x=tf.nn.relu(x+self.batnorbs[kn][1](y*self.selys[kn][2](self.selys[kn][1](self.selys[kn][0](y))),training=training))
+        #policy head
+        pr=tf.math.softmax(self.flat2(self.convp2(self.convp1(x))))
+        #value head
+        vr=self.dense2(tf.nn.relu(self.batnorv1(self.dense1(self.flat1(self.convv1(x))),training=training)))
+        return self.conca([pr,vr])
 # tf.keras.backend.clear_session()
 
 # class mybce(tf.keras.losses.Loss):
@@ -177,10 +219,13 @@ class AZV(tf.keras.metrics.Metric):
         return self.acuv.reset_states()
 
 class A0_ENG(object):
-    def __init__(self,nflter,wt_file,lgrt=1e-2):
-        self.optz=tf.keras.optimizers.SGD(learning_rate=lgrt,momentum=0.9,nesterov=True,clipvalue=1e-1)
-        # self.optz=tf.keras.optimizers.Adamax(learning_rate=lgrt)
-        self.a0_eng = RN_GM(nflter)
+    def __init__(self,nflter,wt_file,lgrt=1e-2,nblock=10):
+        # self.optz=tf.keras.optimizers.SGD(learning_rate=lgrt,momentum=0.9,nesterov=True,clipvalue=1e-1)
+        self.optz=tf.keras.optimizers.Adam(learning_rate=lgrt) # step size bound with default params: 3.162*lr
+        if(nblock==10):# use v2 ispossible, no v2 for compatibility when loading weights
+            self.a0_eng = RN_GM(nflter)
+        else:
+            self.a0_eng = RN_GM_v2(nflter,nblock)
 
         self.gmloss=MixedLoss()
         self.gmpmetric=AZP()
