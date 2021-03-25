@@ -5,6 +5,9 @@ import time
 import struct
 import sys
 import RNG
+import tensorflow as tf
+tf.config.threading.set_inter_op_parallelism_threads(32)
+tf.config.threading.set_intra_op_parallelism_threads(32)
 
 try:
     nchl=int(sys.argv[1])
@@ -12,7 +15,7 @@ except:
     print("Error: Failed to get n_channel. Exiting.")
     quit()
 if(nchl==64 or nchl==128):
-    a0eng=RNG.A0_ENG(nchl,"./RNG%d.tf"%(nchl),1e-3)
+    a0eng=RNG.A0_ENG(nchl,"./RNG%d.tf"%(nchl),1e-3 if nchl==64 else 1e-3)
     print("10 blk * %d flt."%(nchl))
 elif(nchl==20):# 20 is actually blocks
     a0eng=RNG.A0_ENG(64,"./RNG%d.tf"%(nchl),1e-3,20)
@@ -78,6 +81,37 @@ x_tr=x_tr[indeces]
 y_tr=y_tr[indeces]
 print("data shuffled")
 
+
+def flip_x(ps):
+    return (14-ps//15)*15+ps%15
+def flip_y(ps):
+    return (ps//15)*15+(14-ps%15)
+def trs_xy(ps):
+    return (ps%15)*15+ps//15
+idxes=[# here it should be the inverse operation!!!
+    np.array([(ps                         if ps<225 else ps) for ps in range(226)]),
+    np.array([(flip_x(ps)                 if ps<225 else ps) for ps in range(226)]),
+    np.array([(flip_y(ps)                 if ps<225 else ps) for ps in range(226)]),
+    np.array([(flip_x(flip_y(ps))         if ps<225 else ps) for ps in range(226)]),
+    np.array([(trs_xy(ps)                 if ps<225 else ps) for ps in range(226)]),
+    np.array([(trs_xy(flip_y(ps))         if ps<225 else ps) for ps in range(226)]),# !!!
+    np.array([(trs_xy(flip_x(ps))         if ps<225 else ps) for ps in range(226)]),# !!!
+    np.array([(trs_xy(flip_x(flip_y(ps))) if ps<225 else ps) for ps in range(226)])
+]
+mxfns=[
+    lambda mxx: mxx,
+    lambda mxx: np.flip(mxx,0),
+    lambda mxx: np.flip(mxx,1),
+    lambda mxx: np.flip(mxx,(0,1)),
+    lambda mxx: np.transpose(mxx,(1,0,2)),
+    lambda mxx: np.transpose(np.flip(mxx,0),(1,0,2)),
+    lambda mxx: np.transpose(np.flip(mxx,1),(1,0,2)),
+    lambda mxx: np.transpose(np.flip(mxx,(0,1)),(1,0,2))
+]
+def data_augmentator(datx,daty,rnd):
+    return mxfns[rnd](datx),daty[idxes[rnd]]
+
+
 # print("evaluation 2:")
 # print(a0eng.a0_eng.evaluate(x_tr,y_tr))
 
@@ -87,6 +121,10 @@ print("validation split:",prtt,"|",lxtr-prtt)
 vloss=1e100
 nepc=0
 while(True):
+    print("augmentating data...  ",end="")
+    for kk in range(lxtr):
+        x_tr[kk],y_tr[kk]=data_augmentator(x_tr[kk],y_tr[kk],np.random.randint(8))
+    print("Done!")
     hist1=a0eng.a0_eng.fit(x_tr[:prtt],y_tr[:prtt],epochs=1,shuffle=True,batch_size=btze,validation_data=(x_tr[prtt:],y_tr[prtt:]))
     nvls=hist1.history['val_loss'][-1]
     if(nvls>=vloss):

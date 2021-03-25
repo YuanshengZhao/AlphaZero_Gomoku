@@ -1,15 +1,12 @@
 # perform auto training loop
 
-from types import DynamicClassAttribute
 import psutil
 import time
 import datetime
 import os
 import random
 import numpy as np
-from six import int2byte
 
-from tensorflow.python.keras.backend import dtype
 import RNG as RN_Gomoku
 
 # num of processes to launch
@@ -56,27 +53,34 @@ def getevalrst():
 
 def evaluate():
     print("evaluate...")
-    os.system("python3 opening_generator.py")
     cmd="./Parallel_do.sh"
-    rsed=random.sample(range(2147483629),n_proc)
     for i in range(n_proc):
         cmd+=" \"nice -n 19 ./ag.exe v gm"+str(i+1)+" op"+str(i+1)+" "+str(rsed[i])+"\""
     os.system(cmd)
     waitForComplete()
 
-def saveMD(n1,n2):
-    a0eng2=RN_Gomoku.A0_ENG(64,"./weights_run1/RNG64_%d.tf"%(n1),1e-1/(2.0**3))
-    a0eng2.a0_eng.save("RNG_Old")
-    a0eng=RN_Gomoku.A0_ENG(64,"./weights_run1/RNG64_%d.tf"%(n2),1e-1/(2.0**3))
-    a0eng.a0_eng.save("RNG")
+def saveMD(ee1,ee2):
+    p1,f1,b1=ee1
+    p2,f2,b2=ee2
+    a0eng=RN_Gomoku.A0_ENG(f1,p1,1e-3,b1)
+    a0eng.a0_eng.save("RNG_Old")
+    a0eng2=RN_Gomoku.A0_ENG(f2,p2,1e-3,b2)
+    a0eng2.a0_eng.save("RNG")
 
-enging_list=np.array([47,46,45,44,43,41,31,21,11,1],dtype=int)
+enging_list=[
+("./weights/RNG64.tf",64,10),
+("./RNG128.tf",128,10),
+("./RNG20.tf",64,20)
+("./weights_run1/RNG64_47.tf",64,10),
+]
 score_list=np.zeros(len(enging_list),dtype=float)
+os.system("python3 opening_generator.py")
+rsed=random.sample(range(2147483629),n_proc)
 
 for i1 in range(len(enging_list)):
     for i2 in range(len(enging_list)):
         e1,e2=enging_list[i1],enging_list[i2]
-        if(e2<=e1):
+        if(i1>=i2):
             continue
         saveMD(e1,e2)
         evaluate()
@@ -85,10 +89,10 @@ for i1 in range(len(enging_list)):
         score_list[i1]+=(2*n_proc-est)
         fp=open("./tounament_result.log","a+")
         fp.write(time.strftime("%m/%d/%Y %H:%M:%S",time.localtime())+" ")
-        fp.write("%2d vs %2d -> %4.1f : %4.1f\n"%(e1,e2,2*n_proc-est,est))
+        fp.write("%-50s vs %-50s -> %4.1f : %4.1f\n"%(e1[0],e2[0],2*n_proc-est,est))
         fp.close()
 
 fp=open("./tounament_result.log","a+")
 for scr,ege in sorted(zip(score_list,enging_list),reverse=True):
-    fp.write("%2d -> %4.1f\n"%(ege,scr))
+    fp.write("%-50s -> %4.1f\n"%(ege[0],scr))
 fp.close()
