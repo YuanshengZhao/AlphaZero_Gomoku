@@ -36,7 +36,7 @@ def sendMessage(msg):
     engine.stdin.write(msg)
     getoutput()
 
-nsu,fpun,fpur,wtt=300,1.3,1.0,0.3
+nsu,fpun,fpur,wtt=300,1.3,1.1,0.3
 time.sleep(5)
 sendMessage("n %d\n"%(nsu))
 sendMessage("f %f %f\n"%(fpun,fpur))

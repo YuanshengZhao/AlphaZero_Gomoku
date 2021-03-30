@@ -70,7 +70,7 @@ def saveMD(ee1,ee2):
 enging_list=[
 ("./weights/RNG64.tf",64,10),
 ("./RNG128.tf",128,10),
-("./RNG20.tf",64,20)
+("./RNG20.tf",64,20),
 ("./weights_run1/RNG64_47.tf",64,10),
 ]
 score_list=np.zeros(len(enging_list),dtype=float)

@@ -22,6 +22,7 @@ for ddir in ["./weights","./games","./eval"]:
     else:
         os.system("mkdir "+ddir)
         print("created ",ddir)
+os.system("nice -n 19 python3 SaveMD.py") # for safety
 
 def waitForComplete():
     freecount=0
@@ -118,8 +119,8 @@ for bigr in range(Nbgr):
         fp.write("success; net saved to lv "+str(vers)+"\n")
         fp.close()
         #on success train a 128-filter version and 20-block version
-        os.system("nice -n 19 python3 tr2c.py 128")
-        os.system("nice -n 19 python3 tr2c.py 20")
+        # os.system("nice -n 19 python3 tr2c.py 128")
+        # os.system("nice -n 19 python3 tr2c.py 20")
         #remove game files, since new files will append to old ones.
         os.system("rm ./games/gm*")
     else:

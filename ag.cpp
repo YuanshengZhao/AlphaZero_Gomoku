@@ -458,8 +458,10 @@ int select_action(NODE *root,bool add_noise=true)
         cvcounts[0]=0.f;
         for(auto i=0;i<root->num_child;i++)
         {
-            // cvcounts[i+1]=cvcounts[i]+powf((root->children[i]->visit_count)/maxscore,1.125f);
-            cvcounts[i+1]=cvcounts[i]+(root->children[i]->visit_count)/maxscore;
+            // cvcounts[i+1]=cvcounts[i]+powf((root->children[i]->visit_count)/maxscore,1.5f);
+            cvcounts[i+1]=((root->children[i]->visit_count)<2)? 
+                            cvcounts[i]:
+                            cvcounts[i]+(root->children[i]->visit_count)/maxscore;
         }
         rnd=UniformDistribution(mt_19937)*cvcounts[root->num_child];
         // fscanf(uniformdis,"%f\n",&rnd);
@@ -604,6 +606,68 @@ void hmpl()
         fflush(stdout);
     }
 }
+const int canonical_op[][2]={
+    {5,9},{6,9},{7,9},{8,9},{9,9},
+                {7,8},{8,8},{9,8},
+                      {8,7},{9,7},
+                      {8,6},{9,6},
+                            {9,5},
+                {5,7},{5,8},{5,9},
+                      {6,8},{6,9},
+                      {7,8},{7,9},
+                {8,7},{8,8},{8,9},
+                {9,7},{9,8},{9,9},
+};
+std::uniform_int_distribution<int> rand_int_op(0,25);
+std::uniform_int_distribution<int> rand_int_ps(0,14);
+std::uniform_int_distribution<int> rand_int_dp(-2,2);
+int rnd_opening(int *ops)
+{
+    float ds=UniformDistribution(mt_19937);
+    int n_op;
+    if(ds<.05)
+    {
+        return 0;
+    }
+    else if(ds<.3)
+    {
+        ops[0]=rand_int_ps(mt_19937);
+        ops[1]=rand_int_ps(mt_19937);
+        return 1;
+    }
+    else
+    {
+        ops[0]=ops[1]=7;
+        n_op=rand_int_op(mt_19937);
+        printf("opening #%d\n",n_op);
+        ops[2]=6;
+        ops[3]=n_op<13? 8 : 7;
+        ops[4]=canonical_op[n_op][0];
+        ops[5]=canonical_op[n_op][1];
+        if(UniformDistribution(mt_19937)<.5)
+        {
+            // printf("Transpose xy\n");
+            for(auto kk=0;kk<3;kk++) {n_op=ops[kk*2+0];ops[kk*2+0]=ops[kk*2+1];ops[kk*2+1]=n_op;}
+        }
+        if(UniformDistribution(mt_19937)<.5)
+        {
+            // printf("Flip x\n");
+            for(auto kk=0;kk<3;kk++) {ops[kk*2+0]=14-ops[kk*2+0];}
+        }
+        if(UniformDistribution(mt_19937)<.5)
+        {
+            // printf("Flip y\n");
+            for(auto kk=0;kk<3;kk++) {ops[kk*2+1]=14-ops[kk*2+1];}
+        }
+        // printf("x-shift: %2d\n",(act=mt_19937()%3-1));
+        n_op=rand_int_dp(mt_19937);
+        for(auto kk=0;kk<3;kk++) {ops[kk*2+0]+=n_op;}
+        // printf("y-shift: %2d\n",(act=mt_19937()%3-1));
+        n_op=rand_int_dp(mt_19937);
+        for(auto kk=0;kk<3;kk++) {ops[kk*2+1]+=n_op;}
+        return 3;
+    }
+}
 
 void sfpl(int npos,const char* out_file,int rseed)
 {
@@ -618,6 +682,8 @@ void sfpl(int npos,const char* out_file,int rseed)
     int totps=0;
     int ngames=0;
     float gs_sum=0;
+    int opns[3][2];
+    int nops=0;
     FILE *fpx,*fpy;
     sprintf(ff,"games/%s.x",out_file);
     fpx=fopen(ff,"a+b");
@@ -625,6 +691,7 @@ void sfpl(int npos,const char* out_file,int rseed)
     sprintf(ff,"games/%s.y",out_file);
     fpy=fopen(ff,"a+b");
     if(!fpy){printf("error! %s\n",ff);return;}
+    fpuReduction=1.2f; fpuReductionRoot=1.0f;
     printf("fpu = %.3f | %.3f\n",fpuReduction,fpuReductionRoot);
 
     // gammadis=fopen("gamma.txt","r");
@@ -634,29 +701,37 @@ void sfpl(int npos,const char* out_file,int rseed)
     {
         printf("game %d\n",ngames+1);
         clearAll(a0eng.zobrist);
+        nops=rnd_opening(opns[0]);
+        for(auto kk=0;kk<nops;kk++)
+        {
+            applyMove(opns[kk][0],opns[kk][1],a0eng.zobrist);
+        }
         while(move_count==0 or (game_rst=winLossDraw())< -.5)
         {
             if(side2move) memcpy(&bufx[move_count*(maxPossibleMoves*2)],inv_board[0][0],sizeof(inv_board));
             else memcpy(&bufx[move_count*(maxPossibleMoves*2)],board[0][0],sizeof(board));
             // printf("copy complete\n");
             act=run_mcts(&a0eng,true,true,&bufy[move_count*(maxPossibleMoves+1)],&val,&dpt,&tmu);
+            bufy[move_count*(maxPossibleMoves+1)+maxPossibleMoves]=val;//use node val;
             printf("\r%3d %2d %2d %.3f %3d %.3f ",move_count,act/15,act%15,val,dpt,tmu);
             fflush(stdout);
             applyMove(act,a0eng.zobrist);
         }
-        for(auto kk=0;kk<move_count;kk++)
-        {
-            bufy[kk*(maxPossibleMoves+1)+maxPossibleMoves]=kk%2? 1-game_rst : game_rst;
-            //game_rst is absolute result!
-        }
+        // for(auto kk=nops;kk<move_count;kk++)//use game result for val
+        // {
+        //     bufy[kk*(maxPossibleMoves+1)+maxPossibleMoves]=kk%2? 
+        //                                                     .9*bufy[kk*(maxPossibleMoves+1)+maxPossibleMoves]+.1*(1-game_rst) :
+        //                                                     .9*bufy[kk*(maxPossibleMoves+1)+maxPossibleMoves]+.1*(game_rst  ) ;
+        //     //game_rst is absolute result!
+        // }
         ngames++;
         gs_sum+=game_rst;
         printf("\r");
         printBoard();
-        totps+=move_count;
-        printf("result: %.1f, %d games, %d pos, avg_score_black: %.3f\n",game_rst,ngames,totps,gs_sum/ngames);
-        fwrite(bufx,sizeof(float),move_count*(maxPossibleMoves*2),fpx);
-        fwrite(bufy,sizeof(float),move_count*(maxPossibleMoves+1),fpy);
+        totps+=(move_count-nops);
+        printf("result: %.1f | %d, %d games, %d pos, avg_score_black: %.3f\n",game_rst,nops,ngames,totps,gs_sum/ngames);
+        fwrite(&bufx[nops*(maxPossibleMoves*2)],sizeof(float),(move_count-nops)*(maxPossibleMoves*2),fpx);
+        fwrite(&bufy[nops*(maxPossibleMoves+1)],sizeof(float),(move_count-nops)*(maxPossibleMoves+1),fpy);
     }
     printf("generated %d pos\n",totps);
     fclose(fpx);
@@ -682,7 +757,8 @@ void sfvs(const char* out_file,const char* opening,int rseed)
     auto side_id=0;
     float nscore=0;
     FILE *fp;
-    fpuReductionRoot=1.3f;
+    setNum_sml(800);
+    fpuReduction=fpuReductionRoot=1.3f;
     a0eng1.initEngine("RNG_Old/");
     a0eng2.initEngine("RNG/");
 
@@ -757,6 +833,8 @@ void sfvs(const char* out_file,const char* opening,int rseed)
 
 int main(int argc, const char* argv[])
 {
+    const char *buildString = "Ag by YZ, compiled at " __DATE__ ", " __TIME__ ".\n";
+    printf(buildString);
     const char errormsg[]="usage:\n  h                                   ->   hmpl\n  t <n_pos> <out_file> <seed>         ->   self play\n  v <out_file> <opening_file> <seed>  ->   versus\n";
     int sd,np;
     if(argc==1) 

@@ -108,7 +108,7 @@ mxfns=[
     lambda mxx: np.transpose(np.flip(mxx,1),(1,0,2)),
     lambda mxx: np.transpose(np.flip(mxx,(0,1)),(1,0,2))
 ]
-def data_augmentator(datx,daty,rnd):
+def data_augmentor(datx,daty,rnd):
     return mxfns[rnd](datx),daty[idxes[rnd]]
 
 
@@ -120,10 +120,10 @@ prtt=int(lxtr/btze*.95)*btze
 print("validation split:",prtt,"|",lxtr-prtt)
 vloss=1e100
 nepc=0
-while(True):
-    print("augmentating data...  ",end="")
+while(nepc<5):#max epochs here
+    print("augmenting data...  ",end="")
     for kk in range(lxtr):
-        x_tr[kk],y_tr[kk]=data_augmentator(x_tr[kk],y_tr[kk],np.random.randint(8))
+        x_tr[kk],y_tr[kk]=data_augmentor(x_tr[kk],y_tr[kk],np.random.randint(8))
     print("Done!")
     hist1=a0eng.a0_eng.fit(x_tr[:prtt],y_tr[:prtt],epochs=1,shuffle=True,batch_size=btze,validation_data=(x_tr[prtt:],y_tr[prtt:]))
     nvls=hist1.history['val_loss'][-1]
@@ -134,8 +134,8 @@ while(True):
         hist=hist1
         vloss=nvls
         a0eng.a0_eng.save_weights("./RNG%d.tf"%(nchl))
+        nstep=a0eng.a0_eng.optimizer.get_weights()[-1]
 # a0eng.a0_eng.save("RNG")
-nstep=a0eng.a0_eng.optimizer.get_weights()[-1]
 if(not isinstance(nstep,(int,np.integer))): #first round only
     nstep=prtt//btze*nepc
 print("steps trained:",nstep,"newly trained epochs:",nepc)
