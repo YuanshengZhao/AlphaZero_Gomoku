@@ -361,18 +361,21 @@ float pseudo_evaluate(NODE* node,A0ENGINE* engine,int cache_pos=max_cache-1)
 std::gamma_distribution<float> GammaDistribution(.05,1.0);
 std::uniform_real_distribution<float> UniformDistribution(0.0,1.0);
 
+const float spow=1.61,ppow=1/spow;
+
 void add_exploration_noise(NODE *node)
 {
-    float noise[maxPossibleMoves],noise_sum=0;
+    float noise[maxPossibleMoves],noise_sum=0,temped_p_sum=0;
     for(auto i=0;i<node->num_child;i++)
     {
         noise[i]=GammaDistribution(mt_19937);
         // fscanf(gammadis,"%f\n",&noise[i]);
         noise_sum+=noise[i];
+        temped_p_sum+=(node->children[i]->prior=powf(node->children[i]->prior,ppow));
     }
     for(auto i=0;i<node->num_child;i++)
     {
-        node->children[i]->prior = node->children[i]->prior*.75+noise[i]/noise_sum*.25;
+        node->children[i]->prior = node->children[i]->prior/temped_p_sum*.75+noise[i]/noise_sum*.25;
     }
 }
 
@@ -473,7 +476,7 @@ int select_action(NODE *root,bool add_noise=true)
             // cvcounts[i+1]=cvcounts[i]+powf((root->children[i]->visit_count)/maxscore,1.5f);
             cvcounts[i+1]=((root->children[i]->visit_count)<3)? 
                             cvcounts[i]:
-                            cvcounts[i]+(root->children[i]->visit_count)/maxscore;
+                            cvcounts[i]+powf((root->children[i]->visit_count)/maxscore,spow);
         }
         rnd=UniformDistribution(mt_19937)*cvcounts[root->num_child];
         // fscanf(uniformdis,"%f\n",&rnd);
