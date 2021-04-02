@@ -42,7 +42,8 @@ def selfPlay():
     cmd="./Parallel_do.sh"
     rsed=random.sample(range(2147483629),n_proc)
     for i in range(n_proc):
-        cmd+=" \"nice -n 19 ./ag.exe t 2000 gm"+str(i+1)+" "+str(rsed[i])+"\""
+        # cmd+=" \"nice -n 19 ./ag.exe t 2000 gm"+str(i+1)+" "+str(rsed[i])+"\""
+        cmd+=" \"nice -n 19 ./ag_batch.exe t 2000 gm"+str(i+1)+" "+str(rsed[i])+"\""
     print(cmd)
     os.system(cmd)
     waitForComplete()

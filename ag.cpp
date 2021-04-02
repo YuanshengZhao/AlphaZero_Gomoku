@@ -361,26 +361,23 @@ float pseudo_evaluate(NODE* node,A0ENGINE* engine,int cache_pos=max_cache-1)
 std::gamma_distribution<float> GammaDistribution(.05,1.0);
 std::uniform_real_distribution<float> UniformDistribution(0.0,1.0);
 
-const float spow=1.61,ppow=1/spow;
-
 void add_exploration_noise(NODE *node)
 {
-    float noise[maxPossibleMoves],noise_sum=0,temped_p_sum=0;
+    float noise[maxPossibleMoves],noise_sum=0;
     for(auto i=0;i<node->num_child;i++)
     {
         noise[i]=GammaDistribution(mt_19937);
         // fscanf(gammadis,"%f\n",&noise[i]);
         noise_sum+=noise[i];
-        temped_p_sum+=(node->children[i]->prior=powf(node->children[i]->prior,ppow));
     }
     for(auto i=0;i<node->num_child;i++)
     {
-        node->children[i]->prior = node->children[i]->prior/temped_p_sum*.75+noise[i]/noise_sum*.25;
+        node->children[i]->prior = node->children[i]->prior*.75+noise[i]/noise_sum*.25;
     }
 }
 
 float fpuReduction=1.3f,fpuReductionRoot=1.0f;
-float pb_c;
+float pb_c,cpuct=1.25f;
 
 float ucb_score(NODE *parent, NODE *child, bool isnotroot=true)
 {
@@ -396,7 +393,7 @@ int select_child(NODE *node,bool isnotroot=true)
     // return mt_19937()%node->num_child;
     float maxscore=-INFINITY,score;
     int maxidx=0;
-    pb_c=(logf((node->visit_count+19653)/19652.0f) + 1.25f) * sqrtf(node->visit_count);
+    pb_c=(logf((node->visit_count+19653)/19652.0f)+cpuct) * sqrtf(node->visit_count);
     for(auto i=0;i<node->num_child;i++)
     {
         score=ucb_score(node,node->children[i],isnotroot);
@@ -476,7 +473,7 @@ int select_action(NODE *root,bool add_noise=true)
             // cvcounts[i+1]=cvcounts[i]+powf((root->children[i]->visit_count)/maxscore,1.5f);
             cvcounts[i+1]=((root->children[i]->visit_count)<3)? 
                             cvcounts[i]:
-                            cvcounts[i]+powf((root->children[i]->visit_count)/maxscore,spow);
+                            cvcounts[i]+(root->children[i]->visit_count)/maxscore;
         }
         rnd=UniformDistribution(mt_19937)*cvcounts[root->num_child];
         // fscanf(uniformdis,"%f\n",&rnd);
@@ -620,13 +617,37 @@ void clearAll(ZOBRIST *hzobrist)
     hzobrist->clearkey();
 }
 
+int partition(int* lst,int lo,int hi)//[lo,hi]
+{
+    int pivot=rootnode.children[lst[hi]]->visit_count,i=lo,temp;
+    for(auto j=lo;j<=hi;j++)
+    {
+        if(rootnode.children[lst[j]]->visit_count<pivot)
+        {
+            temp=lst[i];lst[i]=lst[j];lst[j]=temp;
+            ++i;
+        }
+    }
+    temp=lst[i];lst[i]=lst[hi];lst[hi]=temp;
+    return i;
+}
+void quick_sort(int* lst,int lo,int hi)
+{
+    if(lo<hi)
+    {
+        auto p=partition(lst,lo,hi);
+        quick_sort(lst,lo,p-1);
+        quick_sort(lst,p+1,hi);
+    }
+}
+
 void hmpl()
 {
     A0ENGINE a0eng;
     a0eng.initEngine("RNG_Old/");
     fpuReductionRoot=1.3f;
     float val,tmu;
-    int act,dpt;
+    int act,dpt,mvs[maxPossibleMoves];
     char cmd;
     int px,py;
     while(true)
@@ -653,6 +674,18 @@ void hmpl()
             // printBoard();
             // if(winLossDraw()>-.5f) printf("Game over\n");
             break;
+        case 't':
+            printf("Comp play ");
+            act=run_mcts(&a0eng,false,true,NULL,&val,&dpt,&tmu);
+            for(auto km=0;km<rootnode.num_child;++km)
+                mvs[km]=km;
+            quick_sort(mvs,0,rootnode.num_child-1);
+            for(auto kz=0;kz<rootnode.num_child;++kz)
+            {
+                act=mvs[kz];
+                printf("(%-2d,%-2d) pr %.3f nv %-3d sc %.3f\n",rootnode.actions[act]/15,rootnode.actions[act]%15,rootnode.children[act]->prior,rootnode.children[act]->visit_count,1-rootnode.children[act]->value());
+            }
+            break;
         case 'n':
             if(scanf("%d",&px)!=1) printf("Invalid command\n");
             else setNum_sml(px);
@@ -660,6 +693,10 @@ void hmpl()
         case 'f':
             if(scanf("%f %f",&fpuReduction,&fpuReductionRoot)!=2) printf("Invalid command\n");
             printf("FPU = %f | %f\n",fpuReduction,fpuReductionRoot);
+            break;
+        case 'u':
+            if(scanf("%f",&cpuct)!=1) printf("Invalid command\n");
+            printf("cpuct = %f\n",cpuct);
             break;
         case 'w':
             if(scanf("%f",&valueWt)!=1) printf("Invalid command\n");
@@ -773,8 +810,10 @@ void sfpl(int npos,const char* out_file,int rseed)
     sprintf(ff,"games/%s.y",out_file);
     fpy=fopen(ff,"a+b");
     if(!fpy){printf("error! %s\n",ff);return;}
-    fpuReduction=1.2f; fpuReductionRoot=1.0f;
+    fpuReduction=1.3f; fpuReductionRoot=1.0f;
+    cpuct=2.5f;
     printf("fpu = %.3f | %.3f\n",fpuReduction,fpuReductionRoot);
+    printf("cpunt = %.3f\n",cpuct);
 
     // gammadis=fopen("gamma.txt","r");
     // uniformdis=fopen("uniform.txt","r");
