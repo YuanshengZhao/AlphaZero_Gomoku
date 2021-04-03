@@ -221,7 +221,7 @@ class AZV(tf.keras.metrics.Metric):
 class A0_ENG(object):
     def __init__(self,nflter,wt_file,lgrt=1e-2,nblock=10):
         # self.optz=tf.keras.optimizers.SGD(learning_rate=lgrt,momentum=0.9,nesterov=True,clipvalue=1e-1)
-        self.optz=tf.keras.optimizers.Adam(learning_rate=lgrt) # step size bound with default params: 3.162*lr
+        self.optz=tf.keras.optimizers.Adam() # step size bound with default params: 3.162*lr
         if(nblock==10):# use v2 ispossible, no v2 for compatibility when loading weights
             self.a0_eng = RN_GM(nflter)
         else:
@@ -241,3 +241,4 @@ class A0_ENG(object):
             print("loaded weights",wt_file)
         else:
             print("warning: weight file not found!")
+        self.a0_eng.optimizer.lr.assign(lgrt)

@@ -97,6 +97,7 @@ def evaluate():
     waitForComplete()
 
 start_date=time.localtime().tm_mday
+discardNet() # safety
 
 for bigr in range(Nbgr):
     noww=time.localtime()

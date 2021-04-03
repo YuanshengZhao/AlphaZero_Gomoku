@@ -285,7 +285,7 @@ int A0ENGINE::initEngine(const char* saved_model_dir)
     int64_t dims[] = {1,15,15,2};
     int ndata = sizeof(float)*450 ;// This is tricky, it number of bytes not number of element
 
-    printf("eboard dict: %lu\n",(unsigned long)eboard);
+    printf("eboard dict: %p\n",eboard);
     for(auto ix=0;ix<max_cache;++ix)
     {
         dims[0]=ix+1; ndata=sizeof(float)*450*(ix+1);
@@ -293,7 +293,7 @@ int A0ENGINE::initEngine(const char* saved_model_dir)
         if (InputValues[ix] != NULL)
         {
             engBoard[ix]=(float*)TF_TensorData(InputValues[ix]);
-            printf("TF_NewTensor is OK: %lu\n",(unsigned long)engBoard[ix]);
+            printf("TF_NewTensor is OK: %p\n",engBoard[ix]);
         }
         else
             printf("ERROR: Failed TF_NewTensor\n");
@@ -471,7 +471,7 @@ int select_action(NODE *root,bool add_noise=true)
         for(auto i=0;i<root->num_child;i++)
         {
             // cvcounts[i+1]=cvcounts[i]+powf((root->children[i]->visit_count)/maxscore,1.5f);
-            cvcounts[i+1]=((root->children[i]->visit_count)<3)? 
+            cvcounts[i+1]=((root->children[i]->visit_count)<1)? 
                             cvcounts[i]:
                             cvcounts[i]+(root->children[i]->visit_count)/maxscore;
         }
@@ -645,7 +645,7 @@ void hmpl()
 {
     A0ENGINE a0eng;
     a0eng.initEngine("RNG_Old/");
-    fpuReductionRoot=1.3f;
+    // fpuReductionRoot=1.3f;
     float val,tmu;
     int act,dpt,mvs[maxPossibleMoves];
     char cmd;
@@ -674,16 +674,20 @@ void hmpl()
             // printBoard();
             // if(winLossDraw()>-.5f) printf("Game over\n");
             break;
+        case 'T':
+            act=run_mcts(&a0eng,false,false,NULL,&val,&dpt,&tmu);
+            goto run_mcts_opt;
         case 't':
-            printf("Comp play ");
             act=run_mcts(&a0eng,false,true,NULL,&val,&dpt,&tmu);
+run_mcts_opt:
             for(auto km=0;km<rootnode.num_child;++km)
                 mvs[km]=km;
             quick_sort(mvs,0,rootnode.num_child-1);
             for(auto kz=0;kz<rootnode.num_child;++kz)
             {
                 act=mvs[kz];
-                printf("(%-2d,%-2d) pr %.3f nv %-3d sc %.3f\n",rootnode.actions[act]/15,rootnode.actions[act]%15,rootnode.children[act]->prior,rootnode.children[act]->visit_count,1-rootnode.children[act]->value());
+                if(rootnode.children[act]->visit_count)
+                    printf("(%-2d,%-2d) pr %.3f nv %-3d sc %.3f\n",rootnode.actions[act]/15,rootnode.actions[act]%15,rootnode.children[act]->prior,rootnode.children[act]->visit_count,1-rootnode.children[act]->value());
             }
             break;
         case 'n':
@@ -811,7 +815,7 @@ void sfpl(int npos,const char* out_file,int rseed)
     fpy=fopen(ff,"a+b");
     if(!fpy){printf("error! %s\n",ff);return;}
     fpuReduction=1.3f; fpuReductionRoot=1.0f;
-    cpuct=2.5f;
+    // cpuct=2.5f;
     printf("fpu = %.3f | %.3f\n",fpuReduction,fpuReductionRoot);
     printf("cpunt = %.3f\n",cpuct);
 
@@ -838,6 +842,10 @@ void sfpl(int npos,const char* out_file,int rseed)
             fflush(stdout);
             applyMove(act,a0eng.zobrist);
         }
+
+        //use mage score for last move 
+        bufy[(move_count-1)*(maxPossibleMoves+1)+maxPossibleMoves]=(move_count-1)%2? (1-game_rst):(game_rst) ;
+
         // for(auto kk=nops;kk<move_count;kk++)//use game result for val
         // {
         //     bufy[kk*(maxPossibleMoves+1)+maxPossibleMoves]=kk%2? 

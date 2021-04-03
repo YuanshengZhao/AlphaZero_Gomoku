@@ -15,7 +15,7 @@ except:
     print("Error: Failed to get n_channel. Exiting.")
     quit()
 if(nchl==64 or nchl==128):
-    a0eng=RNG.A0_ENG(nchl,"./RNG%d.tf"%(nchl),1e-3 if nchl==64 else 1e-3)
+    a0eng=RNG.A0_ENG(nchl,"./RNG%d.tf"%(nchl),1e-4 if nchl==64 else 1e-3)
     print("10 blk * %d flt."%(nchl))
 elif(nchl==20):# 20 is actually blocks
     a0eng=RNG.A0_ENG(64,"./RNG%d.tf"%(nchl),1e-3,20)
@@ -118,6 +118,7 @@ def data_augmentor(datx,daty,rnd):
 btze=2048
 prtt=int(lxtr/btze*.95)*btze
 print("validation split:",prtt,"|",lxtr-prtt)
+print("learning rate:",a0eng.a0_eng.optimizer.lr.numpy())
 vloss=1e100
 nepc=0
 while(nepc<5):#max epochs here
