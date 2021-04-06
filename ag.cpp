@@ -510,8 +510,8 @@ int run_mcts(A0ENGINE* engine,bool sel_noise,bool dir_noise,float *prb_out,float
         eng_output=(float*)TF_TensorData(engine->OutputValues[0]);
         rootnode.num_child=-rootnode.num_child;
         assign_pending_node(&rootnode,eng_output);
-        engine->zobrist->setValue(engine->z_key[0],eng_output,board[0][0]);
-        rootnode.value_sum=side2move==0? eng_output[maxPossibleMoves] : 1.0f-eng_output[maxPossibleMoves];
+        engine->zobrist->setValue(engine->z_key[0],eng_output,engine->engBoard[0]);
+        rootnode.value_sum=eng_output[maxPossibleMoves];
         TF_DeleteTensor(engine->OutputValues[0]);
         engine->pos_cached=0;
     }
@@ -821,15 +821,30 @@ void sfpl(int npos,const char* out_file,int rseed)
 
     // gammadis=fopen("gamma.txt","r");
     // uniformdis=fopen("uniform.txt","r");
+    int read_move=npos<0? 1 : -1;
+    FILE *fpm=NULL;
+    if(read_move>0)
+    {
+        fpm=fopen("eval/gm1.txt","r");
+        if(!fpm) 
+        {
+            printf("eval/gm1.txt not found!\n");
+            goto fnsh;
+        }
+        fgets(ff,128,fpm);
+    }
 
-    while(totps<npos)
+    while(totps<npos or read_move>0)
     {
         printf("game %d\n",ngames+1);
         clearAll(a0eng.zobrist);
-        nops=rnd_opening(opns[0]);
-        for(auto kk=0;kk<nops;kk++)
+        if(read_move<0)
         {
-            applyMove(opns[kk][0],opns[kk][1],a0eng.zobrist);
+            nops=rnd_opening(opns[0]);
+            for(auto kk=0;kk<nops;kk++)
+            {
+                applyMove(opns[kk][0],opns[kk][1],a0eng.zobrist);
+            }
         }
         while(move_count==0 or (game_rst=winLossDraw())< -.5)
         {
@@ -838,6 +853,16 @@ void sfpl(int npos,const char* out_file,int rseed)
             // printf("copy complete\n");
             act=run_mcts(&a0eng,true,true,&bufy[move_count*(maxPossibleMoves+1)],&val,&dpt,&tmu);
             bufy[move_count*(maxPossibleMoves+1)+maxPossibleMoves]=val;//use node val;
+            if(read_move>0)
+            {
+                if(sscanf(ff,"%*s %*s %d %d",&act,&dpt)!=2)
+                {
+                    printf("file error: cannot read from %s\n",ff);
+                    goto fnsh;
+                }
+                act=act*15+dpt; dpt=0;
+                fgets(ff,128,fpm);
+            }
             printf("\r%3d %2d %2d %.3f %3d %.3f ",move_count,act/15,act%15,val,dpt,tmu);
             fflush(stdout);
             applyMove(act,a0eng.zobrist);
@@ -861,7 +886,28 @@ void sfpl(int npos,const char* out_file,int rseed)
         printf("result: %.1f | %d, %d games, %d pos, avg_score_black: %.3f\n",game_rst,nops,ngames,totps,gs_sum/ngames);
         fwrite(&bufx[nops*(maxPossibleMoves*2)],sizeof(float),(move_count-nops)*(maxPossibleMoves*2),fpx);
         fwrite(&bufy[nops*(maxPossibleMoves+1)],sizeof(float),(move_count-nops)*(maxPossibleMoves+1),fpy);
+        if(read_move>0)
+        {
+            fgets(ff,128,fpm);
+            if(feof(fpm))
+            {
+                printf("finished reading file %d\n",read_move);
+                fclose(fpm);
+                ++read_move;
+                sprintf(ff,"eval/gm%d.txt",read_move);
+                fpm=fopen(ff,"r");
+                if(!fpm) 
+                {
+                    printf("%s not found!\n",ff);
+                    goto fnsh;
+                }
+                fgets(ff,128,fpm);
+            }
+
+        }
+        
     }
+fnsh:
     printf("generated %d pos\n",totps);
     fclose(fpx);
     fclose(fpy);

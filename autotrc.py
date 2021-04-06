@@ -40,10 +40,10 @@ def waitForComplete():
 def selfPlay():
     print("self play...")
     cmd="./Parallel_do.sh"
-    rsed=random.sample(range(2147483629),n_proc)
-    for i in range(n_proc):
+    rsed=random.sample(range(2147483629),n_proc+1)
+    for i in range(n_proc+1):
         # cmd+=" \"nice -n 19 ./ag.exe t 2000 gm"+str(i+1)+" "+str(rsed[i])+"\""
-        cmd+=" \"nice -n 19 ./ag_batch.exe t 2000 gm"+str(i+1)+" "+str(rsed[i])+"\""
+        cmd+=" \"nice -n 19 ./ag_batch.exe t "+("2500" if i<n_proc else "-1")+" gm"+str(i+1)+" "+str(rsed[i])+"\""
     print(cmd)
     os.system(cmd)
     waitForComplete()
@@ -121,8 +121,8 @@ for bigr in range(Nbgr):
         fp.write("success; net saved to lv "+str(vers)+"\n")
         fp.close()
         #on success train a 128-filter version and 20-block version
-        # os.system("nice -n 19 python3 tr2c.py 128")
-        # os.system("nice -n 19 python3 tr2c.py 20")
+        os.system("nice -n 19 python3 tr2c.py 128")
+        os.system("nice -n 19 python3 tr2c.py 20")
         #remove game files, since new files will append to old ones.
         os.system("rm ./games/gm*")
     else:

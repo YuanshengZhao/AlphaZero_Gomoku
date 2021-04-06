@@ -15,7 +15,7 @@ except:
     print("Error: Failed to get n_channel. Exiting.")
     quit()
 if(nchl==64 or nchl==128):
-    a0eng=RNG.A0_ENG(nchl,"./RNG%d.tf"%(nchl),1e-4 if nchl==64 else 1e-3)
+    a0eng=RNG.A0_ENG(nchl,"./RNG%d.tf"%(nchl),1e-5 if nchl==64 else 1e-3)
     print("10 blk * %d flt."%(nchl))
 elif(nchl==20):# 20 is actually blocks
     a0eng=RNG.A0_ENG(64,"./RNG%d.tf"%(nchl),1e-3,20)
