@@ -1,9 +1,9 @@
-# for ntimes in {1..20}
-# do
-#     echo $ntimes
-#     python3 ./selfPlay2.py
+for ntimes in {1..5}
+do
+    echo $ntimes
+    python3 ./tounamentc.py
 #     python3 ./train2.py
-# done
+done
 
 # python3 ./4.py
 # python3 ./selfPlay.py

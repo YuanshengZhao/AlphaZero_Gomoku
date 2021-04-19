@@ -17,9 +17,10 @@ int movelist[maxPossibleMoves];
 auto move_count=0;
 auto num_simul=800;
 auto const sfmxMoves=30;
+const int max_cache=4;
 // FILE *gammadis,*uniformdis;
 
-void printBoard()
+void printBoard(float* mboard=board[0][0])
 {
     printf("   ");
     for(auto ii=0;ii<15;ii++)
@@ -30,16 +31,16 @@ void printBoard()
         printf(" %d ",ii%10);
         for(auto jj=0;jj<15;jj++)
         {
-            if(board[ii][jj][0]==0.f and board[ii][jj][1]==0.f)
+            if(mboard[(ii*15+jj)*2+0]==0.f and mboard[(ii*15+jj)*2+1]==0.f)
             {
                 if((ii==7 and jj==7) or ((ii==3 or ii==11) and (jj==3 or jj==11)))
                     printf(" + ");
                 else
                     printf(" - ");
             }
-            else if(board[ii][jj][0]==1.f and board[ii][jj][1]==0.f)
+            else if(mboard[(ii*15+jj)*2+0]==1.f and mboard[(ii*15+jj)*2+1]==0.f)
                 printf("\033[96m O \033[0m");
-            else if(board[ii][jj][0]==0.f and board[ii][jj][1]==1.f)
+            else if(mboard[(ii*15+jj)*2+0]==0.f and mboard[(ii*15+jj)*2+1]==1.f)
                 printf("\033[91m X \033[0m");
             else
                 printf(" E ");
@@ -63,15 +64,14 @@ public:
     NODE* children[maxPossibleMoves];
     int num_child=0;
 
-    void set_state(float prior,int sidem);
+    void set_state(int sidem);
     bool expanded();
     float value();
 };
-void NODE::set_state(float pr,int sidem)
+void NODE::set_state(int sidem)
 {
     visit_count=0;
     to_play=sidem;
-    prior=pr;
     value_sum=0.0;
     num_child=0;
 }
@@ -145,6 +145,7 @@ public:
     float *values,*boardcheck;
     float* getValue(float *boardX);
     void setValue(float *rst_in, float *board_in);
+    void setValue(int key, float *rst_in, float *board_in);
     void updatekey(int pos);
     void clearkey();
 };
@@ -195,6 +196,11 @@ void ZOBRIST::setValue(float *rst_in, float *board_in)
     memcpy(&values[currentkey*(maxPossibleMoves+1)],rst_in,(maxPossibleMoves+1)*sizeof(float));
     memcpy(&boardcheck[currentkey*2*maxPossibleMoves],board_in,(maxPossibleMoves*2)*sizeof(float));
 }
+void ZOBRIST::setValue(int key, float *rst_in, float *board_in)
+{
+    memcpy(&values[key*(maxPossibleMoves+1)],rst_in,(maxPossibleMoves+1)*sizeof(float));
+    memcpy(&boardcheck[key*2*maxPossibleMoves],board_in,(maxPossibleMoves*2)*sizeof(float));
+}
 
 class A0ENGINE
 {
@@ -204,14 +210,16 @@ public:
     TF_Output* Output;
     TF_Tensor** InputValues;
     TF_Tensor** OutputValues;
-    int NumInputs = 1;
-    int NumOutputs = 1;
+    const int NumInputs = 1;
+    const int NumOutputs = 1;
+    int pos_cached=0;
     TF_Status* Status;
-    float* engBoard;
+    float* engBoard[max_cache];
     int initEngine(const char* saved_model_dir);
     void runEngine();
     ZOBRIST *zobrist;
-    float eboard[15][15][2];
+    int z_key[max_cache];
+    float eboard[max_cache*15*15*2];
 };
 
 int A0ENGINE::initEngine(const char* saved_model_dir)
@@ -248,7 +256,7 @@ int A0ENGINE::initEngine(const char* saved_model_dir)
     }
     //****** Get input tensor
     //TODO : need to use saved_model_cli to read saved_model arch
-    Input = (TF_Output*)malloc(sizeof(TF_Output) * NumInputs);
+    Input = new TF_Output[NumInputs];
 
     TF_Output t0 = {TF_GraphOperationByName(Graph, "serving_default_input_1"), 0};
     if(t0.oper == NULL)
@@ -259,7 +267,7 @@ int A0ENGINE::initEngine(const char* saved_model_dir)
     Input[0] = t0;
     
     //********* Get Output tensor
-    Output = (TF_Output*)malloc(sizeof(TF_Output) * NumOutputs);
+    Output = new TF_Output[NumOutputs];
 
     TF_Output t2 = {TF_GraphOperationByName(Graph, "StatefulPartitionedCall"), 0};
     if(t2.oper == NULL)
@@ -270,23 +278,26 @@ int A0ENGINE::initEngine(const char* saved_model_dir)
     Output[0] = t2;
 
     //********* Allocate data for inputs & outputs
-    InputValues = (TF_Tensor**)malloc(sizeof(TF_Tensor*)*NumInputs);
-    OutputValues = (TF_Tensor**)malloc(sizeof(TF_Tensor*)*NumOutputs);
+    InputValues =  new TF_Tensor*[max_cache*NumInputs ];
+    OutputValues = new TF_Tensor*[max_cache*NumOutputs];
 
     int ndims = 4;
     int64_t dims[] = {1,15,15,2};
     int ndata = sizeof(float)*450 ;// This is tricky, it number of bytes not number of element
 
-    TF_Tensor* int_tensor = TF_NewTensor(TF_FLOAT, dims, ndims, eboard[0][0], ndata, &NoOpDeallocator, 0);
-    if (int_tensor != NULL)
+    printf("eboard dict: %p\n",eboard);
+    for(auto ix=0;ix<max_cache;++ix)
     {
-        printf("TF_NewTensor is OK\n");
+        dims[0]=ix+1; ndata=sizeof(float)*450*(ix+1);
+        InputValues[ix]=TF_NewTensor(TF_FLOAT,dims,ndims,eboard,ndata,&NoOpDeallocator,0);
+        if (InputValues[ix] != NULL)
+        {
+            engBoard[ix]=(float*)TF_TensorData(InputValues[ix]);
+            printf("TF_NewTensor is OK: %p\n",engBoard[ix]);
+        }
+        else
+            printf("ERROR: Failed TF_NewTensor\n");
     }
-    else
-        printf("ERROR: Failed TF_NewTensor\n");
-    
-    InputValues[0] = int_tensor;
-    engBoard=(float*)TF_TensorData(InputValues[0]);
 
     zobrist=new ZOBRIST(500000);
     return 0;
@@ -294,53 +305,57 @@ int A0ENGINE::initEngine(const char* saved_model_dir)
 
 void A0ENGINE::runEngine()
 {
-    TF_SessionRun(Session, NULL, Input, InputValues, NumInputs, Output, OutputValues, NumOutputs, NULL, 0,NULL , Status);
+    TF_SessionRun(Session, NULL, Input, &InputValues[pos_cached-1], NumInputs, Output, OutputValues, NumOutputs, NULL, 0,NULL , Status);
     // if(TF_GetCode(Status) != TF_OK) printf("%s",TF_Message(Status));
 }
 
-float evaluate(NODE* node,A0ENGINE* engine)
+void assign_pending_node(NODE* node, float* policy_logits)
+{
+    float policy_sum=0;
+    // printf("chld count: %d\n",node->num_child);
+    for(auto idpolicy=0;idpolicy<node->num_child;++idpolicy)
+        policy_sum+=policy_logits[node->actions[idpolicy]];
+    for(auto idpolicy=0;idpolicy<node->num_child;++idpolicy)
+        node->children[idpolicy]->prior=policy_logits[node->actions[idpolicy]]/policy_sum;
+}
+
+float pseudo_evaluate(NODE* node,A0ENGINE* engine,int cache_pos=max_cache-1)
 {
     auto wld=winLossDraw();
     if(wld!=-1.f) return wld;
+    if(node->num_child<0) return -2; //evaluate pending
     float* policy_logits=NULL;
-    bool isrun=false;
     // policy_logits=NULL;
-    policy_logits=engine->zobrist->getValue(board[0][0]);//hash table stores absolute positions: [black,white] not [self,opponent].
-    if(!policy_logits)//not found in hash table
-    {
-        // printf("not found!");
-        if(side2move) memcpy(engine->engBoard,inv_board[0][0],sizeof(inv_board));
-        else memcpy(engine->engBoard,board[0][0],sizeof(board));
-        engine->runEngine();
-        policy_logits=(float*)TF_TensorData(engine->OutputValues[0]);
-        engine->zobrist->setValue(policy_logits,board[0][0]);
-        isrun=true;
-    }
+    policy_logits=engine->zobrist->getValue(side2move? inv_board[0][0]:board[0][0]);//hash table stores absolute positions: [black,white] not [self,opponent].
     auto nump=0;
     auto px=0,py=0;
-    float policy[maxPossibleMoves],policy_sum=0;
+    auto tp=1-node->to_play;
     for(auto pos=0;pos<maxPossibleMoves;pos++)
     {
         px=pos/15;py=pos%15;
         if(board[px][py][0]==board[px][py][1])//since can not be both 1;
         {
             node->actions[nump]=pos;
-            policy[nump]=policy_logits[pos];
-            policy_sum += policy[nump];
-            nump+=1;
+            node->children[nump]= &nodes[nodes_used];
+            node->children[nump]->set_state(tp);
+            ++nodes_used;
+            ++nump;
         }
     }
-    auto tp=1-node->to_play;
-    for(auto idpolicy=0;idpolicy<nump;idpolicy++)
+    if(policy_logits)//found in hash
     {
-        node->children[idpolicy]= &nodes[nodes_used];
-        node->children[idpolicy]->set_state(policy[idpolicy]/policy_sum,tp);
-        nodes_used++;
+        node->num_child=nump;
+        assign_pending_node(node,policy_logits);
+        return side2move? 1-policy_logits[maxPossibleMoves] : policy_logits[maxPossibleMoves];
     }
-    node->num_child=nump;
-    float rvalue=side2move? 1-policy_logits[maxPossibleMoves] : policy_logits[maxPossibleMoves];
-    if(isrun) TF_DeleteTensor(engine->OutputValues[0]);
-    return rvalue;
+    else//not found
+    {
+        node->num_child=-nump;//set node to pending state
+        if(side2move) memcpy(&(engine->engBoard[cache_pos][450*engine->pos_cached]),inv_board[0][0],sizeof(inv_board));
+        else          memcpy(&(engine->engBoard[cache_pos][450*engine->pos_cached]),board[0][0],sizeof(board));
+        engine->z_key[engine->pos_cached]=engine->zobrist->currentkey;
+        return -1;
+    }
 }
 
 std::gamma_distribution<float> GammaDistribution(.05,1.0);
@@ -362,7 +377,7 @@ void add_exploration_noise(NODE *node)
 }
 
 float fpuReduction=1.3f,fpuReductionRoot=1.0f;
-float pb_c;
+float pb_c,cpuct=1.25f;
 
 float ucb_score(NODE *parent, NODE *child, bool isnotroot=true)
 {
@@ -378,7 +393,7 @@ int select_child(NODE *node,bool isnotroot=true)
     // return mt_19937()%node->num_child;
     float maxscore=-INFINITY,score;
     int maxidx=0;
-    pb_c=(logf((node->visit_count+19653)/19652.0f) + 1.25f) * sqrtf(node->visit_count);
+    pb_c=(logf((node->visit_count+19653)/19652.0f)+cpuct) * sqrtf(node->visit_count);
     for(auto i=0;i<node->num_child;i++)
     {
         score=ucb_score(node,node->children[i],isnotroot);
@@ -415,10 +430,7 @@ void takeBack(ZOBRIST *hzobrist)
 void backpropagate(NODE **search_path,int lenth,float value)
 {
     for(auto i=0;i<lenth;i++)
-    {
-        search_path[i]->value_sum += search_path[i]->to_play == 0? value : (1 - value);
-        search_path[i]->visit_count += 1;
-    }
+        search_path[i]->value_sum += search_path[i]->to_play == 0? value-1 : (-value);
 }
 
 float valueWt=0*num_simul;
@@ -459,7 +471,7 @@ int select_action(NODE *root,bool add_noise=true)
         for(auto i=0;i<root->num_child;i++)
         {
             // cvcounts[i+1]=cvcounts[i]+powf((root->children[i]->visit_count)/maxscore,1.5f);
-            cvcounts[i+1]=((root->children[i]->visit_count)<2)? 
+            cvcounts[i+1]=((root->children[i]->visit_count)<1)? 
                             cvcounts[i]:
                             cvcounts[i]+(root->children[i]->visit_count)/maxscore;
         }
@@ -485,34 +497,101 @@ int run_mcts(A0ENGINE* engine,bool sel_noise,bool dir_noise,float *prb_out,float
     using namespace std::chrono;
     high_resolution_clock::time_point t1 = high_resolution_clock::now();
     nodes_used=0;
-    rootnode.set_state(1.0,side2move);
+    rootnode.set_state(side2move);
     rootnode.visit_count=1;
-    rootnode.value_sum=side2move==0? evaluate(&rootnode,engine) : 1.0f-evaluate(&rootnode,engine);
-    // evaluate returns absolute value: 1 for black wins 0 for white wins
-    int depth=0,maxdepth=0;
+    float pseudo_value=pseudo_evaluate(&rootnode,engine,0),*eng_output;
+    if(pseudo_value>=0.f)
+        rootnode.value_sum=side2move==0? pseudo_value : 1.0f-pseudo_value;
+        // evaluate returns absolute value: 1 for black wins 0 for white wins
+    else
+    {
+        ++(engine->pos_cached);
+        engine->runEngine();
+        eng_output=(float*)TF_TensorData(engine->OutputValues[0]);
+        rootnode.num_child=-rootnode.num_child;
+        assign_pending_node(&rootnode,eng_output);
+        engine->zobrist->setValue(engine->z_key[0],eng_output,engine->engBoard[0]);
+        rootnode.value_sum=eng_output[maxPossibleMoves];
+        TF_DeleteTensor(engine->OutputValues[0]);
+        engine->pos_cached=0;
+    }
+    // printf("root v %f\n",rootnode.value_sum);
     if(dir_noise) add_exploration_noise(&rootnode);
     // printf("noise!\n");
     int idx;
-    float value;
-    NODE *search_path[maxPossibleMoves],*cr_node;
-    for(auto _t=0;_t<num_simul;_t++)
+    int depth[max_cache],maxdepth=0;
+    NODE *search_path[max_cache][maxPossibleMoves],*cr_node;
+    for(auto _t=1;_t<=num_simul;++_t)
     {
         cr_node=&rootnode;
-        search_path[0]=cr_node;
-        depth=1;
+        search_path[engine->pos_cached][0]=cr_node;
+        depth[engine->pos_cached]=1;
 
         while(cr_node->expanded())
         {
-            idx=select_child(cr_node,depth>1);
+            idx=select_child(cr_node,depth[engine->pos_cached]>1);
+            // printf("d %d ",depth[engine->pos_cached]);
+            // printf("select chld %d\n",idx);
+            ++(cr_node->visit_count); ++(cr_node->value_sum);//virtual score to discourage visiting same node//should place after select_child
             applyMove(cr_node->actions[idx],engine->zobrist);
             cr_node=cr_node->children[idx];
-            search_path[depth++]=cr_node;
+            search_path[engine->pos_cached][depth[engine->pos_cached]++]=cr_node;
         }
+        ++(cr_node->visit_count); ++(cr_node->value_sum);//virtual score to discourage visiting same node
         // printBoard();
-        value=evaluate(cr_node,engine);
-        backpropagate(search_path,depth,value);
-        for(auto tt=1;tt<depth;tt++) takeBack(engine->zobrist);
-        maxdepth=maxdepth>depth? maxdepth : depth;
+        pseudo_value=pseudo_evaluate(cr_node,engine);
+        // printf("pseudo_value %f %d\n",pseudo_value,engine->pos_cached);
+        // printBoard();
+        for(auto tt=1;tt<depth[engine->pos_cached];++tt) takeBack(engine->zobrist);
+        // printBoard();
+        if(pseudo_value>=0)
+        {
+            backpropagate(search_path[engine->pos_cached],depth[engine->pos_cached],pseudo_value);
+            // printf("root v %f\n",rootnode.value_sum);
+            maxdepth=maxdepth>depth[engine->pos_cached]? maxdepth : depth[engine->pos_cached];
+        }
+        else if(pseudo_value==-2)//leaf is pending
+        {
+            // printf("revert\n");
+            --_t;
+            for(auto i=0;i<depth[engine->pos_cached];i++)
+            {
+                --(search_path[engine->pos_cached][i]->value_sum);
+                --(search_path[engine->pos_cached][i]->visit_count);
+            }
+        }
+        else
+        {
+            ++(engine->pos_cached);
+        }
+        if(engine->pos_cached==max_cache || pseudo_value==-2 || (_t==num_simul && engine->pos_cached!=0))
+        {
+            // printf("run\n");
+            if(engine->pos_cached!=max_cache)
+            {
+                // printf("data moved\n");
+                memcpy(engine->engBoard[engine->pos_cached-1],engine->engBoard[max_cache-1],sizeof(float)*450*engine->pos_cached);
+            }
+            engine->runEngine();
+            eng_output=(float*)TF_TensorData(engine->OutputValues[0]);
+            // printf("run finish\n");
+            for(auto cid=0;cid<engine->pos_cached;++cid)
+            {
+                search_path[cid][depth[cid]-1]->num_child=-search_path[cid][depth[cid]-1]->num_child;
+                assign_pending_node(search_path[cid][depth[cid]-1],&(eng_output[cid*(maxPossibleMoves+1)]));
+                // printBoard(&(engine->engBoard[max_cache-1][maxPossibleMoves*2*cid]));
+                // printf("engine %f %d\n",eng_output[cid*(maxPossibleMoves+1)+maxPossibleMoves],engine->z_key[cid]);
+                engine->zobrist->setValue(engine->z_key[cid],&eng_output[cid*(maxPossibleMoves+1)],&(engine->engBoard[max_cache-1][maxPossibleMoves*2*cid]));
+                backpropagate(search_path[cid],depth[cid],
+                            search_path[cid][depth[cid]-1]->to_play? 
+                            1-eng_output[cid*(maxPossibleMoves+1)+maxPossibleMoves] :
+                            eng_output[cid*(maxPossibleMoves+1)+maxPossibleMoves]);
+                maxdepth=maxdepth>depth[cid]? maxdepth : depth[cid];
+                // printf("root v %f\n",rootnode.value_sum);
+            }
+            TF_DeleteTensor(engine->OutputValues[0]);
+            engine->pos_cached=0;
+        }
     }
     high_resolution_clock::time_point t2 = high_resolution_clock::now();
     duration<float> time_span = duration_cast<duration<float> >(t2 - t1);
@@ -538,13 +617,37 @@ void clearAll(ZOBRIST *hzobrist)
     hzobrist->clearkey();
 }
 
+int partition(int* lst,int lo,int hi)//[lo,hi]
+{
+    int pivot=rootnode.children[lst[hi]]->visit_count,i=lo,temp;
+    for(auto j=lo;j<=hi;j++)
+    {
+        if(rootnode.children[lst[j]]->visit_count<pivot)
+        {
+            temp=lst[i];lst[i]=lst[j];lst[j]=temp;
+            ++i;
+        }
+    }
+    temp=lst[i];lst[i]=lst[hi];lst[hi]=temp;
+    return i;
+}
+void quick_sort(int* lst,int lo,int hi)
+{
+    if(lo<hi)
+    {
+        auto p=partition(lst,lo,hi);
+        quick_sort(lst,lo,p-1);
+        quick_sort(lst,p+1,hi);
+    }
+}
+
 void hmpl()
 {
     A0ENGINE a0eng;
     a0eng.initEngine("RNG_Old/");
-    fpuReductionRoot=1.3f;
+    // fpuReductionRoot=1.3f;
     float val,tmu;
-    int act,dpt;
+    int act,dpt,mvs[maxPossibleMoves];
     char cmd;
     int px,py;
     while(true)
@@ -571,6 +674,22 @@ void hmpl()
             // printBoard();
             // if(winLossDraw()>-.5f) printf("Game over\n");
             break;
+        case 'T':
+            act=run_mcts(&a0eng,false,false,NULL,&val,&dpt,&tmu);
+            goto run_mcts_opt;
+        case 't':
+            act=run_mcts(&a0eng,false,true,NULL,&val,&dpt,&tmu);
+run_mcts_opt:
+            for(auto km=0;km<rootnode.num_child;++km)
+                mvs[km]=km;
+            quick_sort(mvs,0,rootnode.num_child-1);
+            for(auto kz=0;kz<rootnode.num_child;++kz)
+            {
+                act=mvs[kz];
+                if(rootnode.children[act]->visit_count)
+                    printf("(%-2d,%-2d) pr %.3f nv %-3d sc %.3f\n",rootnode.actions[act]/15,rootnode.actions[act]%15,rootnode.children[act]->prior,rootnode.children[act]->visit_count,1-rootnode.children[act]->value());
+            }
+            break;
         case 'n':
             if(scanf("%d",&px)!=1) printf("Invalid command\n");
             else setNum_sml(px);
@@ -578,6 +697,10 @@ void hmpl()
         case 'f':
             if(scanf("%f %f",&fpuReduction,&fpuReductionRoot)!=2) printf("Invalid command\n");
             printf("FPU = %f | %f\n",fpuReduction,fpuReductionRoot);
+            break;
+        case 'u':
+            if(scanf("%f",&cpuct)!=1) printf("Invalid command\n");
+            printf("cpuct = %f\n",cpuct);
             break;
         case 'w':
             if(scanf("%f",&valueWt)!=1) printf("Invalid command\n");
@@ -691,20 +814,37 @@ void sfpl(int npos,const char* out_file,int rseed)
     sprintf(ff,"games/%s.y",out_file);
     fpy=fopen(ff,"a+b");
     if(!fpy){printf("error! %s\n",ff);return;}
-    fpuReduction=1.2f; fpuReductionRoot=1.0f;
+    fpuReduction=1.3f; fpuReductionRoot=1.0f;
+    // cpuct=2.5f;
     printf("fpu = %.3f | %.3f\n",fpuReduction,fpuReductionRoot);
+    printf("cpunt = %.3f\n",cpuct);
 
     // gammadis=fopen("gamma.txt","r");
     // uniformdis=fopen("uniform.txt","r");
+    int read_move=npos<0? 1 : -1;
+    FILE *fpm=NULL;
+    if(read_move>0)
+    {
+        fpm=fopen("eval/gm1.txt","r");
+        if(!fpm) 
+        {
+            printf("eval/gm1.txt not found!\n");
+            goto fnsh;
+        }
+        fgets(ff,128,fpm);
+    }
 
-    while(totps<npos)
+    while(totps<npos or read_move>0)
     {
         printf("game %d\n",ngames+1);
         clearAll(a0eng.zobrist);
-        nops=rnd_opening(opns[0]);
-        for(auto kk=0;kk<nops;kk++)
+        if(read_move<0)
         {
-            applyMove(opns[kk][0],opns[kk][1],a0eng.zobrist);
+            nops=rnd_opening(opns[0]);
+            for(auto kk=0;kk<nops;kk++)
+            {
+                applyMove(opns[kk][0],opns[kk][1],a0eng.zobrist);
+            }
         }
         while(move_count==0 or (game_rst=winLossDraw())< -.5)
         {
@@ -713,17 +853,31 @@ void sfpl(int npos,const char* out_file,int rseed)
             // printf("copy complete\n");
             act=run_mcts(&a0eng,true,true,&bufy[move_count*(maxPossibleMoves+1)],&val,&dpt,&tmu);
             bufy[move_count*(maxPossibleMoves+1)+maxPossibleMoves]=val;//use node val;
+            if(read_move>0)
+            {
+                if(sscanf(ff,"%*s %*s %d %d",&act,&dpt)!=2)
+                {
+                    printf("file error: cannot read from %s\n",ff);
+                    goto fnsh;
+                }
+                act=act*15+dpt; dpt=0;
+                fgets(ff,128,fpm);
+            }
             printf("\r%3d %2d %2d %.3f %3d %.3f ",move_count,act/15,act%15,val,dpt,tmu);
             fflush(stdout);
             applyMove(act,a0eng.zobrist);
         }
-        // for(auto kk=nops;kk<move_count;kk++)//use game result for val
-        // {
-        //     bufy[kk*(maxPossibleMoves+1)+maxPossibleMoves]=kk%2? 
-        //                                                     .9*bufy[kk*(maxPossibleMoves+1)+maxPossibleMoves]+.1*(1-game_rst) :
-        //                                                     .9*bufy[kk*(maxPossibleMoves+1)+maxPossibleMoves]+.1*(game_rst  ) ;
-        //     //game_rst is absolute result!
-        // }
+
+        //use mage score for last move 
+        // bufy[(move_count-1)*(maxPossibleMoves+1)+maxPossibleMoves]=(move_count-1)%2? (1-game_rst):(game_rst) ;
+        
+        for(auto kk=nops;kk<move_count;kk++)//use game result for val
+        {
+            bufy[kk*(maxPossibleMoves+1)+maxPossibleMoves]=kk%2? 
+                                                            /*.75*(bufy[kk*(maxPossibleMoves+1)+maxPossibleMoves])+.25**/(1-game_rst) :
+                                                            /*.75*(bufy[kk*(maxPossibleMoves+1)+maxPossibleMoves])+.25**/(game_rst  ) ;
+            //game_rst is absolute result!
+        }
         ngames++;
         gs_sum+=game_rst;
         printf("\r");
@@ -732,7 +886,28 @@ void sfpl(int npos,const char* out_file,int rseed)
         printf("result: %.1f | %d, %d games, %d pos, avg_score_black: %.3f\n",game_rst,nops,ngames,totps,gs_sum/ngames);
         fwrite(&bufx[nops*(maxPossibleMoves*2)],sizeof(float),(move_count-nops)*(maxPossibleMoves*2),fpx);
         fwrite(&bufy[nops*(maxPossibleMoves+1)],sizeof(float),(move_count-nops)*(maxPossibleMoves+1),fpy);
+        if(read_move>0)
+        {
+            fgets(ff,128,fpm);
+            if(feof(fpm))
+            {
+                printf("finished reading file %d\n",read_move);
+                fclose(fpm);
+                ++read_move;
+                sprintf(ff,"eval/gm%d.txt",read_move);
+                fpm=fopen(ff,"r");
+                if(!fpm) 
+                {
+                    printf("%s not found!\n",ff);
+                    goto fnsh;
+                }
+                fgets(ff,128,fpm);
+            }
+
+        }
+        
     }
+fnsh:
     printf("generated %d pos\n",totps);
     fclose(fpx);
     fclose(fpy);
