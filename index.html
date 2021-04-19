@@ -1,0 +1,60 @@
+
+<!DOCTYPE html>
+<html>
+<title>AZ Gomoku</title>
+<style>
+span.avoidwrap { display:inline-block; }
+</style>
+<link rel="preconnect" href="https://fonts.gstatic.com">
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400&display=swap" rel="stylesheet">
+<body>
+<script>
+  const sdpi=Math.min(2,window.devicePixelRatio);
+    var clientSz=window.innerWidth;
+    if(window.innerHeight*.7<clientSz)
+        clientSz=~~(window.innerHeight*.7)
+    if(clientSz<600) clientSz=600
+    const boardHt=~~(clientSz/18*21);
+    var dx=~~(clientSz/18),sar=~~(dx/10),ds=~~(dx/2.5),lw=~~(dx/8)+(~~((dx/8)+1))%2,hdx=~~(dx/2);
+    const barcenter=~~(dx*19.5),barlength=~~(dx*1.25);
+    var style = document.createElement('style');
+    style.innerHTML="h1{font-size: "+~~(1.8*hdx)+"px;-webkit-text-size-adjust:none; font-family: \'Ubuntu\', sans-serif;}p{font-size: "+hdx+"px;-webkit-text-size-adjust:none; font-family: \'Ubuntu\', sans-serif;}.button {font-size: "+hdx+"px;-webkit-text-size-adjust:none; font-family: \'Ubuntu\', sans-serif;} ul {font-size: "+hdx+"px;-webkit-text-size-adjust:none; font-family: \'Ubuntu\', sans-serif;} .bdp{width: "+clientSz.toString()+"px; text-align:center; border: 2px solid;border-style: ridge;} canvas {border:2px solid rebeccapurple; border-style: ridge;background-color: rgb(197, 255, 226);margin-top: -"+hdx+"px;}";
+    document.head.appendChild(style);
+</script>
+<h1>AlphaZero Gomoku (Free style)</h1>
+<button type="button" class="button" onclick="DelayedCP();">Comp play</button>
+<input type="checkbox" class="button" id="autoplay" name="autoplay" value="autoplay" checked>
+<label for="autoplay" class="button"> auto play</label>&emsp;
+<button type="button" class="button" onclick="takeBackG()">Take back</button>&emsp;
+<button type="button" class="button" onclick="newGame()">New game</button>&emsp;
+<span class="avoidwrap"><label for="N_node" class="button">N_node</label>
+<select id="N_node" name="N_node" class="button" onchange="setNNodeG()">
+  <option value="1">1</option>
+  <option value="10" selected>10</option>
+  <option value="100">100</option>
+  <option value="300">300</option>
+  <option value="2000">2000</option>
+</select>&emsp;</span>
+<span class="avoidwrap"><label for="Temperature" class="button">Temperature</label>
+<select id="Temperature" class="button" name="Temperature" onchange="setTG()">
+  <option value="0">0.0</option>
+  <option value="0.1">0.1</option>
+  <option value="0.5" selected>0.5</option>
+  <option value="1.0">1.0</option>
+</select></span>
+<p class="bdp" id="info">Welcome</p>
+<canvas id="myCanvas"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/random-js@2.1.0/dist/random-js.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.2.0/dist/tf.min.js"></script>
+<script src="ag_batch.js"></script>
+<ul>
+<li><p>N_node: the number of positions computer will search. Larger value can increase playing strength but will cost more time (searching 2000 nodes may take more than 1 min).</p></li>
+<li><p>Temperature: computer will choose the move with probability proportional to visit_count<sup>1/temperature</sup>. Larger value can increase move variety but may reduce playing strength.</p></li>
+</ul>
+<p id="engineinfo"></p>
+<script src="main.js"></script>
+<p>Copyright © 2021 YZ. This project is licenced under the <a href="https://opensource.org/licenses/MIT"> MIT license</a>. The source code can be found <a href="https://github.com/YuanshengZhao/AlphaZero_Gomoku"> here</a>, where a much faster C++ interface is also available.</p>
+<script>console.log("window size: "+window.innerWidth+" × "+window.innerHeight+"; pixel ratio: "+window.devicePixelRatio+"; font size: "+hdx);</script>
+</body>
+</html>
