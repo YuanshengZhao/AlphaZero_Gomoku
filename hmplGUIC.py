@@ -1,11 +1,14 @@
 # Warning: This "gui app" is mainly for test play.
 # Do "normal things" or the behavior is undefined.
 from subprocess import Popen, PIPE
-import multiprocessing
 import tkinter as tk
 from tkinter import messagebox
 import time
-engine = Popen(['./ag.exe', 'h'], stdin=PIPE,stdout=PIPE,encoding='ascii',bufsize=0)
+import os
+if os.name=='nt':
+    engine = Popen(['wsl.exe', './ag.exe', 'h'], stdin=PIPE,stdout=PIPE,encoding='ascii',bufsize=0)
+else:
+    engine = Popen(['./ag.exe', 'h'], stdin=PIPE,stdout=PIPE,encoding='ascii',bufsize=0)
 gameover=0
 cmdout="NULL"
 def getoutput():
@@ -36,7 +39,7 @@ def sendMessage(msg):
     engine.stdin.write(msg)
     getoutput()
 
-nsu,fpun,fpur,wtt=300,1.3,1.1,0.3
+nsu,fpun,fpur,wtt=300,1.2,1.1,0.3
 time.sleep(5)
 sendMessage("n %d\n"%(nsu))
 sendMessage("f %f %f\n"%(fpun,fpur))
@@ -159,6 +162,7 @@ def ComputerMove():
     global cmdout
     print("Computer thinking...")
     # MCTS.timeReset()
+    # sendMessage("T\n")
     sendMessage("v\n")
     # mv,dpt=MCTS.run_mcts(MCTS.evaluatePositionA,False)
     # if(MCTS.side2move==1):
@@ -246,4 +250,7 @@ canvas.create_rectangle(dx*(11+2)-sar,dx*(3 +2)-sar,dx*(11+2)+sar,dx*(3 +2)+sar,
 canvas.create_rectangle(dx*(11+2)-sar,dx*(11+2)-sar,dx*(11+2)+sar,dx*(11+2)+sar,fill="black")
 for i in [-1,1]:
     canvas.create_line(dx*2,barcenter+i*barlength,dx*16,barcenter+i*barlength,fill="black")
+    
 root.mainloop() 
+
+sendMessage("q\n")

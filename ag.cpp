@@ -869,15 +869,15 @@ void sfpl(int npos,const char* out_file,int rseed)
         }
 
         //use mage score for last move 
-        bufy[(move_count-1)*(maxPossibleMoves+1)+maxPossibleMoves]=(move_count-1)%2? (1-game_rst):(game_rst) ;
-
-        // for(auto kk=nops;kk<move_count;kk++)//use game result for val
-        // {
-        //     bufy[kk*(maxPossibleMoves+1)+maxPossibleMoves]=kk%2? 
-        //                                                     .9*bufy[kk*(maxPossibleMoves+1)+maxPossibleMoves]+.1*(1-game_rst) :
-        //                                                     .9*bufy[kk*(maxPossibleMoves+1)+maxPossibleMoves]+.1*(game_rst  ) ;
-        //     //game_rst is absolute result!
-        // }
+        // bufy[(move_count-1)*(maxPossibleMoves+1)+maxPossibleMoves]=(move_count-1)%2? (1-game_rst):(game_rst) ;
+        
+        for(auto kk=nops;kk<move_count;kk++)//use game result for val
+        {
+            bufy[kk*(maxPossibleMoves+1)+maxPossibleMoves]=kk%2? 
+                                                            /*.75*(bufy[kk*(maxPossibleMoves+1)+maxPossibleMoves])+.25**/(1-game_rst) :
+                                                            /*.75*(bufy[kk*(maxPossibleMoves+1)+maxPossibleMoves])+.25**/(game_rst  ) ;
+            //game_rst is absolute result!
+        }
         ngames++;
         gs_sum+=game_rst;
         printf("\r");

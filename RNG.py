@@ -211,7 +211,7 @@ class AZV(tf.keras.metrics.Metric):
         self.acuv=tf.keras.metrics.Accuracy()
     def update_state(self, y_true, y_pred, sample_weight=None):
         yt=tf.zeros_like(y_true[:,-1])
-        yp=tf.nn.relu(tf.math.abs(y_pred[:,-1]-y_true[:,-1])-.25)
+        yp=tf.nn.relu(tf.math.abs(y_pred[:,-1]-y_true[:,-1])-.5)
         self.acuv.update_state(yt,yp)
     def result(self):
         return self.acuv.result()
